@@ -1,0 +1,138 @@
+// server/vlc.js
+// Wrapper around VLC's built-in HTTP API
+//
+// VLC must be running before the server starts. Launch it with:
+//   vlc --intf dummy --extraintf http \
+//       --http-password backpack --http-port 8080 \
+//       --fullscreen --no-video-title-show
+//
+// VLC volume scale:  0–512  where 256 = 100%
+// Protocol volume:   0–100  (percentage)
+
+'use strict';
+
+const http = require('http');
+const { VLC_HOST, VLC_PORT, VLC_PASSWORD } = require('./config');
+
+// Basic auth header — VLC uses empty username + password
+const AUTH_HEADER = 'Basic ' + Buffer.from(':' + VLC_PASSWORD).toString('base64');
+
+const STATUS_PATH  = '/requests/status.json';
+
+// ── Low-level HTTP request ────────────────────────────────────────────────────
+
+function vlcGet(params = {}) {
+  return new Promise((resolve, reject) => {
+    const qs = Object.keys(params).length
+      ? '?' + new URLSearchParams(params).toString()
+      : '';
+
+    const options = {
+      host:    VLC_HOST,
+      port:    VLC_PORT,
+      path:    STATUS_PATH + qs,
+      headers: { Authorization: AUTH_HEADER },
+      timeout: 3000,
+    };
+
+    const req = http.get(options, (res) => {
+      let raw = '';
+      res.on('data', (chunk) => (raw += chunk));
+      res.on('end', () => {
+        try { resolve(JSON.parse(raw)); }
+        catch { resolve({}); }
+      });
+    });
+
+    req.on('timeout', () => { req.destroy(); reject(new Error('VLC request timed out')); });
+    req.on('error',   (err) => reject(err));
+  });
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Clamp a value to [min, max]
+function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+
+// Convert protocol 0-100 → VLC 0-256
+function toVlcVol(pct) { return Math.round(clamp(pct, 0, 100) * 2.56); }
+
+// Convert VLC 0-512 → protocol 0-100
+function fromVlcVol(vlcVol) { return Math.round(clamp(vlcVol, 0, 512) / 2.56); }
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+module.exports = {
+  // Raw VLC state object (for building status payloads)
+  async rawStatus() {
+    return vlcGet();
+  },
+
+  // Build the protocol status payload from VLC state
+  async buildStatus(includeFiles) {
+    const s = await vlcGet();
+    const payload = {
+      status:   s.state  || 'stopped',         // 'playing' | 'paused' | 'stopped'
+      file:     s.information?.category?.meta?.filename || null,
+      pos:      Math.round(s.time   || 0),      // seconds elapsed
+      duration: Math.round(s.length || 0),      // total seconds
+      volume:   fromVlcVol(s.volume || 0),      // 0-100
+    };
+    if (includeFiles) {
+      // Caller is responsible for populating payload.files
+      payload.files = [];
+    }
+    return payload;
+  },
+
+  // Play a specific file (absolute path on Pi filesystem)
+  async playFile(absolutePath) {
+    const uri = 'file://' + absolutePath;
+    return vlcGet({ command: 'in_play', input: uri });
+  },
+
+  // Pause (if playing) — VLC toggles with pl_pause
+  async pause() {
+    return vlcGet({ command: 'pl_forcepause' });
+  },
+
+  // Resume (if paused) — VLC toggles with pl_forceresume
+  async resume() {
+    return vlcGet({ command: 'pl_forceresume' });
+  },
+
+  // Stop playback
+  async stop() {
+    return vlcGet({ command: 'pl_stop' });
+  },
+
+  // Skip to next item in VLC playlist
+  async next() {
+    return vlcGet({ command: 'pl_next' });
+  },
+
+  // Go back to previous item in VLC playlist
+  async prev() {
+    return vlcGet({ command: 'pl_previous' });
+  },
+
+  // Set volume, pct is 0-100
+  async setVolume(pct) {
+    return vlcGet({ command: 'volume', val: toVlcVol(pct) });
+  },
+
+  // Seek to an absolute position in seconds
+  async seek(seconds) {
+    return vlcGet({ command: 'seek', val: Math.round(seconds) });
+  },
+
+  // Check if VLC HTTP API is reachable (used at startup)
+  async ping() {
+    try {
+      const s = await vlcGet();
+      return !!s.state;
+    } catch {
+      return false;
+    }
+  },
+};

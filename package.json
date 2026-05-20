@@ -1,0 +1,16 @@
+{
+  "name": "backpack-display-system",
+  "version": "1.0.0",
+  "description": "Wearable media display — Raspberry Pi 5 + BT Classic SPP + React Native controller",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "start:full": "bash start.sh"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "bluetooth-serial-port": "^2.2.5"
+  }
+}
