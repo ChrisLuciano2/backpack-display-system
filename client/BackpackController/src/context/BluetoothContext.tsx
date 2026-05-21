@@ -68,6 +68,7 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
         ? raw
         : raw?.data ?? raw?.message ?? JSON.stringify(raw);
 
+    console.log('[BT] handleData called, text length:', text?.length, 'preview:', text?.slice(0, 80));
     buffer.current += text;
     const lines = buffer.current.split('\n');
     buffer.current = lines.pop() ?? '';
@@ -156,12 +157,15 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
 
         // ── Data subscription ───────────────────────────────────────────────
         // onDeviceRead is the module-level API for this library version.
+        console.log('[BT] Setting up onDeviceRead for', dev.address);
         dataSub.current = RNBluetoothClassic.onDeviceRead(
           dev.address,
           (event) => {
+            console.log('[BT] onDeviceRead fired, data length:', event?.data?.length, 'preview:', event?.data?.slice(0, 80));
             handleData(event.data);
           },
         );
+        console.log('[BT] dataSub set:', !!dataSub.current);
 
         // ── Disconnect subscription ─────────────────────────────────────────
         disconnectSub.current = RNBluetoothClassic.onDeviceDisconnected(
