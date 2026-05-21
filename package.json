@@ -5,12 +5,13 @@
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
-    "start:full": "bash start.sh"
+    "start:full": "bash start.sh",
+    "setup": "npm install --ignore-scripts && node scripts/patch-bt.js"
   },
   "engines": {
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "bluetooth-serial-port": "git+https://github.com/abandonware/bluetooth-serial-port.git"
+    "bluetooth-serial-port": "^2.2.5"
   }
 }
