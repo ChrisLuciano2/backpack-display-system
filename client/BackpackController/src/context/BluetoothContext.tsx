@@ -133,7 +133,15 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
         setError(null);
         cleanup();
 
-        const dev = await RNBluetoothClassic.connectToDevice(device.address);
+        // Android BT Classic frequently fails on the first attempt with
+        // "read failed, socket might closed" — retry once automatically.
+        let dev: BluetoothDevice;
+        try {
+          dev = await RNBluetoothClassic.connectToDevice(device.address);
+        } catch {
+          await new Promise(r => setTimeout(r, 600));
+          dev = await RNBluetoothClassic.connectToDevice(device.address);
+        }
         deviceRef.current = dev;
         setConnectedDevice(dev);
         setConnected(true);
