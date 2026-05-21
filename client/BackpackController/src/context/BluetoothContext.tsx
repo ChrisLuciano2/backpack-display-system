@@ -147,33 +147,22 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
         };
 
         // ── Data subscription ───────────────────────────────────────────────
-        // Try device-level first (most versions); fall back to module-level.
-        if (typeof (dev as any).onDataReceived === 'function') {
-          dataSub.current = (dev as any).onDataReceived((event: any) => {
-            handleData(event?.data ?? event);
-          });
-        } else {
-          dataSub.current = (RNBluetoothClassic as any).onDataReceived?.(
-            (event: any) => {
-              if (event?.device?.address === dev.address) {
-                handleData(event?.data ?? event);
-              }
-            },
-          );
-        }
+        // onDeviceRead is the module-level API for this library version.
+        dataSub.current = RNBluetoothClassic.onDeviceRead(
+          dev.address,
+          (event) => {
+            handleData(event.data);
+          },
+        );
 
         // ── Disconnect subscription ─────────────────────────────────────────
-        if (typeof (dev as any).onDisconnected === 'function') {
-          disconnectSub.current = (dev as any).onDisconnected(handleDisconnect);
-        } else {
-          disconnectSub.current = (
-            RNBluetoothClassic as any
-          ).onDeviceDisconnected?.((event: any) => {
-            if (event?.device?.address === dev.address) {
+        disconnectSub.current = RNBluetoothClassic.onDeviceDisconnected(
+          (event) => {
+            if (event.device.address === dev.address) {
               handleDisconnect();
             }
-          });
-        }
+          },
+        );
 
         // Request file list immediately after connecting
         try {
