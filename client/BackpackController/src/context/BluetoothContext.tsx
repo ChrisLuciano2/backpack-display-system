@@ -166,7 +166,9 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
         dataSub.current = DeviceEventEmitter.addListener(
           readEventType,
           (event: any) => {
-            handleData(event?.data ?? event);
+            // Java's read() strips the delimiter before firing the event.
+            // Re-add '\n' so handleData's newline-split logic sees a complete message.
+            handleData((event?.data ?? '') + '\n');
           },
         );
 
