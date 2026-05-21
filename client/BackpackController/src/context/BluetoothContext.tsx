@@ -5,7 +5,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import {PermissionsAndroid, Platform} from 'react-native';
+import {DeviceEventEmitter, PermissionsAndroid, Platform} from 'react-native';
 import RNBluetoothClassic, {
   BluetoothDevice,
 } from 'react-native-bluetooth-classic';
@@ -50,16 +50,11 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
   const deviceRef = useRef<BluetoothDevice | null>(null);
   const dataSub = useRef<any>(null);
   const disconnectSub = useRef<any>(null);
-  const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const buffer = useRef('');
 
   const cleanup = useCallback(() => {
     try { dataSub.current?.remove(); } catch {}
     try { disconnectSub.current?.remove(); } catch {}
-    if (pollTimer.current) {
-      clearInterval(pollTimer.current);
-      pollTimer.current = null;
-    }
     dataSub.current = null;
     disconnectSub.current = null;
     deviceRef.current = null;
@@ -159,26 +154,31 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
           setFileList([]);
         };
 
-        // ── Data polling ────────────────────────────────────────────────────
-        // Event subscriptions are unreliable in this RC build; poll instead.
-        pollTimer.current = setInterval(async () => {
-          try {
-            const count = await deviceRef.current?.available();
-            if (count && count > 0) {
-              const data = await deviceRef.current?.read();
-              if (data) {
-                handleData(String(data));
-              }
-            }
-          } catch {
-            // Device disconnected — the disconnect handler will clean up
-          }
-        }, 100);
+        // ── Data subscription ───────────────────────────────────────────────
+        // The library's NativeEventEmitter is wired to a stub NativeModule,
+        // so events never arrive through it. Use DeviceEventEmitter directly
+        // (the global RN event bus that native modules actually emit into),
+        // and activate native event sending via the real native module.
+        const readEventType = `DEVICE_READ@${dev.address}`;
+        try {
+          (RNBluetoothClassic as any)._nativeModule?.addListener?.(readEventType);
+        } catch {}
+        dataSub.current = DeviceEventEmitter.addListener(
+          readEventType,
+          (event: any) => {
+            handleData(event?.data ?? event);
+          },
+        );
 
         // ── Disconnect subscription ─────────────────────────────────────────
-        disconnectSub.current = RNBluetoothClassic.onDeviceDisconnected(
-          (event) => {
-            if (event.device.address === dev.address) {
+        const disconnectEventType = 'DEVICE_DISCONNECTED';
+        try {
+          (RNBluetoothClassic as any)._nativeModule?.addListener?.(disconnectEventType);
+        } catch {}
+        disconnectSub.current = DeviceEventEmitter.addListener(
+          disconnectEventType,
+          (event: any) => {
+            if (event?.device?.address === dev.address) {
               handleDisconnect();
             }
           },
