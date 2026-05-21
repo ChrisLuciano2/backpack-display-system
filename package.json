@@ -11,6 +11,6 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@abandonware/bluetooth-serial-port": "^2.2.5"
+    "bluetooth-serial-port": "git+https://github.com/abandonware/bluetooth-serial-port.git"
   }
 }
