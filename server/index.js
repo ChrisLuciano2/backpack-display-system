@@ -141,9 +141,16 @@ async function dispatch(cmd) {
       // ── File list ─────────────────────────────────────────────────────────
       case 'list': {
         const files = media.listFiles();
-        const st = await vlc.buildStatus(false);
-        st.files = files;
-        send(st);
+        // Don't let a slow/unresponsive VLC block the file list response.
+        // Fetch VLC status optimistically; fall back to a safe default.
+        let base = { status: 'stopped', file: null, pos: 0, duration: 0, volume: 75 };
+        try {
+          base = await vlc.buildStatus(false);
+        } catch {
+          // VLC not ready yet — file list still goes through
+        }
+        base.files = files;
+        send(base);
         return;   // skip the generic status send below
       }
 
