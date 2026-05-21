@@ -1,0 +1,215 @@
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useRef,
+  useState,
+} from 'react';
+import {PermissionsAndroid, Platform} from 'react-native';
+import RNBluetoothClassic, {
+  BluetoothDevice,
+} from 'react-native-bluetooth-classic';
+import {PiCommand, PiStatus} from '../types/protocol';
+
+interface BluetoothContextValue {
+  connected: boolean;
+  connecting: boolean;
+  connectedDevice: BluetoothDevice | null;
+  pairedDevices: BluetoothDevice[];
+  piStatus: PiStatus;
+  fileList: string[];
+  error: string | null;
+  requestPermissions: () => Promise<boolean>;
+  loadPairedDevices: () => Promise<void>;
+  connect: (device: BluetoothDevice) => Promise<void>;
+  disconnect: () => Promise<void>;
+  sendCommand: (cmd: PiCommand) => Promise<void>;
+  requestFileList: () => Promise<void>;
+}
+
+const DEFAULT_STATUS: PiStatus = {
+  status: 'idle',
+  file: null,
+  pos: 0,
+  duration: 0,
+  volume: 75,
+};
+
+const BluetoothContext = createContext<BluetoothContextValue | null>(null);
+
+export function BluetoothProvider({children}: {children: React.ReactNode}) {
+  const [connected, setConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [connectedDevice, setConnectedDevice] =
+    useState<BluetoothDevice | null>(null);
+  const [pairedDevices, setPairedDevices] = useState<BluetoothDevice[]>([]);
+  const [piStatus, setPiStatus] = useState<PiStatus>(DEFAULT_STATUS);
+  const [fileList, setFileList] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const deviceRef = useRef<BluetoothDevice | null>(null);
+  const dataSub = useRef<any>(null);
+  const disconnectSub = useRef<any>(null);
+  const buffer = useRef('');
+
+  const cleanup = useCallback(() => {
+    dataSub.current?.remove();
+    disconnectSub.current?.remove();
+    dataSub.current = null;
+    disconnectSub.current = null;
+    deviceRef.current = null;
+    buffer.current = '';
+  }, []);
+
+  const handleData = useCallback((raw: string) => {
+    buffer.current += raw;
+    const lines = buffer.current.split('\n');
+    buffer.current = lines.pop() ?? '';
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        continue;
+      }
+      try {
+        const msg = JSON.parse(trimmed);
+        if (Array.isArray(msg.files)) {
+          setFileList(msg.files);
+        }
+        if (msg.status) {
+          setPiStatus({
+            status: msg.status,
+            file: msg.file ?? null,
+            pos: msg.pos ?? 0,
+            duration: msg.duration ?? 0,
+            volume: msg.volume ?? 75,
+          });
+        }
+      } catch {
+        // ignore malformed JSON
+      }
+    }
+  }, []);
+
+  const requestPermissions = useCallback(async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') {
+      return true;
+    }
+    if (Platform.Version >= 31) {
+      const results = await PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+      ]);
+      return (
+        results['android.permission.BLUETOOTH_CONNECT'] === 'granted' &&
+        results['android.permission.BLUETOOTH_SCAN'] === 'granted'
+      );
+    }
+    const result = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+    );
+    return result === 'granted';
+  }, []);
+
+  const loadPairedDevices = useCallback(async () => {
+    try {
+      const devices = await RNBluetoothClassic.getBondedDevices();
+      setPairedDevices(devices);
+      setError(null);
+    } catch (e: any) {
+      setError(e?.message ?? 'Failed to load paired devices');
+    }
+  }, []);
+
+  const connect = useCallback(
+    async (device: BluetoothDevice) => {
+      try {
+        setConnecting(true);
+        setError(null);
+        cleanup();
+
+        const dev = await RNBluetoothClassic.connectToDevice(device.address);
+        deviceRef.current = dev;
+        setConnectedDevice(dev);
+        setConnected(true);
+
+        dataSub.current = dev.onDataReceived((event: any) => {
+          handleData(event.data);
+        });
+
+        disconnectSub.current = dev.onDisconnected(() => {
+          cleanup();
+          setConnected(false);
+          setConnectedDevice(null);
+          setPiStatus(DEFAULT_STATUS);
+          setFileList([]);
+        });
+
+        // request file list immediately after connecting
+        await dev.write(JSON.stringify({action: 'list'}) + '\n');
+      } catch (e: any) {
+        setError(e?.message ?? 'Connection failed');
+        cleanup();
+        setConnected(false);
+        setConnectedDevice(null);
+      } finally {
+        setConnecting(false);
+      }
+    },
+    [cleanup, handleData],
+  );
+
+  const disconnect = useCallback(async () => {
+    try {
+      await deviceRef.current?.disconnect();
+    } catch {}
+    cleanup();
+    setConnected(false);
+    setConnectedDevice(null);
+    setPiStatus(DEFAULT_STATUS);
+    setFileList([]);
+  }, [cleanup]);
+
+  const sendCommand = useCallback(async (cmd: PiCommand) => {
+    if (!deviceRef.current) {
+      return;
+    }
+    try {
+      await deviceRef.current.write(JSON.stringify(cmd) + '\n');
+    } catch (e: any) {
+      setError(e?.message ?? 'Send failed');
+    }
+  }, []);
+
+  const requestFileList = useCallback(async () => {
+    await sendCommand({action: 'list'});
+  }, [sendCommand]);
+
+  return (
+    <BluetoothContext.Provider
+      value={{
+        connected,
+        connecting,
+        connectedDevice,
+        pairedDevices,
+        piStatus,
+        fileList,
+        error,
+        requestPermissions,
+        loadPairedDevices,
+        connect,
+        disconnect,
+        sendCommand,
+        requestFileList,
+      }}>
+      {children}
+    </BluetoothContext.Provider>
+  );
+}
+
+export function useBluetooth(): BluetoothContextValue {
+  const ctx = useContext(BluetoothContext);
+  if (!ctx) {
+    throw new Error('useBluetooth must be used inside BluetoothProvider');
+  }
+  return ctx;
+}
