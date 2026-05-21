@@ -5,7 +5,7 @@
 module.exports = {
   // ── Media ──────────────────────────────────────────────────────────────────
   // Directory on the Pi's microSD where video files live
-  MEDIA_DIR: process.env.MEDIA_DIR || '/home/pi/media',
+  MEDIA_DIR: process.env.MEDIA_DIR || `/home/${process.env.USER || 'chrisl'}/media`,
 
   // File extensions considered playable
   MEDIA_EXTS: ['.mp4', '.mkv', '.avi', '.mov', '.m4v', '.webm'],
