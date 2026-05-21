@@ -50,11 +50,16 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
   const deviceRef = useRef<BluetoothDevice | null>(null);
   const dataSub = useRef<any>(null);
   const disconnectSub = useRef<any>(null);
+  const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const buffer = useRef('');
 
   const cleanup = useCallback(() => {
     try { dataSub.current?.remove(); } catch {}
     try { disconnectSub.current?.remove(); } catch {}
+    if (pollTimer.current) {
+      clearInterval(pollTimer.current);
+      pollTimer.current = null;
+    }
     dataSub.current = null;
     disconnectSub.current = null;
     deviceRef.current = null;
@@ -68,7 +73,6 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
         ? raw
         : raw?.data ?? raw?.message ?? JSON.stringify(raw);
 
-    console.log('[BT] handleData called, text length:', text?.length, 'preview:', text?.slice(0, 80));
     buffer.current += text;
     const lines = buffer.current.split('\n');
     buffer.current = lines.pop() ?? '';
@@ -155,17 +159,21 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
           setFileList([]);
         };
 
-        // ── Data subscription ───────────────────────────────────────────────
-        // onDeviceRead is the module-level API for this library version.
-        console.log('[BT] Setting up onDeviceRead for', dev.address);
-        dataSub.current = RNBluetoothClassic.onDeviceRead(
-          dev.address,
-          (event) => {
-            console.log('[BT] onDeviceRead fired, data length:', event?.data?.length, 'preview:', event?.data?.slice(0, 80));
-            handleData(event.data);
-          },
-        );
-        console.log('[BT] dataSub set:', !!dataSub.current);
+        // ── Data polling ────────────────────────────────────────────────────
+        // Event subscriptions are unreliable in this RC build; poll instead.
+        pollTimer.current = setInterval(async () => {
+          try {
+            const count = await deviceRef.current?.available();
+            if (count && count > 0) {
+              const data = await deviceRef.current?.read();
+              if (data) {
+                handleData(String(data));
+              }
+            }
+          } catch {
+            // Device disconnected — the disconnect handler will clean up
+          }
+        }, 100);
 
         // ── Disconnect subscription ─────────────────────────────────────────
         disconnectSub.current = RNBluetoothClassic.onDeviceDisconnected(
