@@ -53,16 +53,22 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
   const buffer = useRef('');
 
   const cleanup = useCallback(() => {
-    dataSub.current?.remove();
-    disconnectSub.current?.remove();
+    try { dataSub.current?.remove(); } catch {}
+    try { disconnectSub.current?.remove(); } catch {}
     dataSub.current = null;
     disconnectSub.current = null;
     deviceRef.current = null;
     buffer.current = '';
   }, []);
 
-  const handleData = useCallback((raw: string) => {
-    buffer.current += raw;
+  const handleData = useCallback((raw: any) => {
+    // raw may be a string or an event object depending on the library version
+    const text: string =
+      typeof raw === 'string'
+        ? raw
+        : raw?.data ?? raw?.message ?? JSON.stringify(raw);
+
+    buffer.current += text;
     const lines = buffer.current.split('\n');
     buffer.current = lines.pop() ?? '';
     for (const line of lines) {
@@ -132,20 +138,49 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
         setConnectedDevice(dev);
         setConnected(true);
 
-        dataSub.current = dev.onDataReceived((event: any) => {
-          handleData(event.data);
-        });
-
-        disconnectSub.current = dev.onDisconnected(() => {
+        const handleDisconnect = () => {
           cleanup();
           setConnected(false);
           setConnectedDevice(null);
           setPiStatus(DEFAULT_STATUS);
           setFileList([]);
-        });
+        };
 
-        // request file list immediately after connecting
-        await dev.write(JSON.stringify({action: 'list'}) + '\n');
+        // ── Data subscription ───────────────────────────────────────────────
+        // Try device-level first (most versions); fall back to module-level.
+        if (typeof (dev as any).onDataReceived === 'function') {
+          dataSub.current = (dev as any).onDataReceived((event: any) => {
+            handleData(event?.data ?? event);
+          });
+        } else {
+          dataSub.current = (RNBluetoothClassic as any).onDataReceived?.(
+            (event: any) => {
+              if (event?.device?.address === dev.address) {
+                handleData(event?.data ?? event);
+              }
+            },
+          );
+        }
+
+        // ── Disconnect subscription ─────────────────────────────────────────
+        if (typeof (dev as any).onDisconnected === 'function') {
+          disconnectSub.current = (dev as any).onDisconnected(handleDisconnect);
+        } else {
+          disconnectSub.current = (
+            RNBluetoothClassic as any
+          ).onDeviceDisconnected?.((event: any) => {
+            if (event?.device?.address === dev.address) {
+              handleDisconnect();
+            }
+          });
+        }
+
+        // Request file list immediately after connecting
+        try {
+          await dev.write(JSON.stringify({action: 'list'}) + '\n');
+        } catch {
+          // write may fail silently on first connect; Browse tab can retry
+        }
       } catch (e: any) {
         setError(e?.message ?? 'Connection failed');
         cleanup();
