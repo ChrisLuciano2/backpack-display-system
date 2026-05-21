@@ -24,7 +24,7 @@
 
 'use strict';
 
-const { BluetoothSerialPortServer } = require('bluetooth-serial-port');
+const { BluetoothSerialPortServer } = require('@abandonware/bluetooth-serial-port');
 const vlc   = require('./vlc');
 const media = require('./media');
 const { BT_UUID, BT_CHANNEL, STATUS_INTERVAL_MS } = require('./config');
