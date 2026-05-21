@@ -69,7 +69,7 @@ fs.writeFileSync(SRC, src);
 console.log('Source patched. Rebuilding…');
 
 const MODULE_DIR = path.join(__dirname, '..', 'node_modules', 'bluetooth-serial-port');
-execSync('node-gyp build', { cwd: MODULE_DIR, stdio: 'inherit' });
+execSync('node-gyp configure build', { cwd: MODULE_DIR, stdio: 'inherit' });
 
 console.log('');
 console.log('bluetooth-serial-port rebuilt successfully for Node.js 20 ✓');
