@@ -20,6 +20,8 @@ pkill vlc 2>/dev/null && echo "[vlc] Killed existing VLC" || true
 sleep 1
 
 # Start VLC with HTTP API on port 8080, fullscreen, no OSD title
+# --avcodec-hw=any  → use Pi 5 hardware H.264/H.265 decoder (V4L2 M2M)
+#                     without this VLC falls back to CPU-only decode (~10 fps)
 # The display is already rotated 90° via raspi-config / display settings
 vlc \
   --intf dummy \
@@ -28,6 +30,7 @@ vlc \
   --http-port 8080 \
   --fullscreen \
   --no-video-title-show \
+  --avcodec-hw=any \
   --quiet &
 
 VLC_PID=$!
