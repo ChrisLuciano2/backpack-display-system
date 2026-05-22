@@ -28,6 +28,7 @@ const { BluetoothSerialPortServer } = require('bluetooth-serial-port');
 const vlc   = require('./vlc');
 const media = require('./media');
 const { startUploadServer } = require('./upload');
+const path  = require('path');
 const { BT_UUID, BT_CHANNEL, STATUS_INTERVAL_MS } = require('./config');
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -89,7 +90,7 @@ async function dispatch(cmd) {
             send({ error: 'File not found: ' + cmd.file });
             return;
           }
-          await vlc.playFile(fullPath);
+          await vlc.playFile(fullPath, media.isImageFile(cmd.file));
         } else {
           // Resume current item without specifying a file
           await vlc.resume();
@@ -166,16 +167,17 @@ async function dispatch(cmd) {
 
       // ── File list ─────────────────────────────────────────────────────────
       case 'list': {
-        const files = media.listFiles();
-        // Don't let a slow/unresponsive VLC block the file list response.
-        // Fetch VLC status optimistically; fall back to a safe default.
+        const { movies, media: mediaFiles } = media.listFilesGrouped();
         let base = { status: 'stopped', file: null, pos: 0, duration: 0, volume: 75 };
         try {
           base = await vlc.buildStatus(false);
         } catch {
           // VLC not ready yet — file list still goes through
         }
-        base.files = files;
+        // Send both the legacy flat list and the new grouped lists
+        base.files  = [...movies, ...mediaFiles];
+        base.movies = movies;
+        base.media  = mediaFiles;
         send(base);
         return;   // skip the generic status send below
       }

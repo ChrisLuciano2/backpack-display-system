@@ -7,8 +7,11 @@ module.exports = {
   // Directory on the Pi's microSD where video files live
   MEDIA_DIR: process.env.MEDIA_DIR || `/home/${process.env.USER || 'chrisl'}/media`,
 
-  // File extensions considered playable
-  MEDIA_EXTS: ['.mp4', '.mkv', '.avi', '.mov', '.m4v', '.webm'],
+  // File extensions considered playable, grouped by category
+  MEDIA_EXTS: ['.mp4', '.mkv', '.avi', '.mov', '.m4v', '.webm', '.gif', '.jpg', '.jpeg', '.png'],
+
+  // Extensions that are images/GIFs (displayed via VLC image player)
+  IMAGE_EXTS: ['.gif', '.jpg', '.jpeg', '.png'],
 
   // ── VLC HTTP API ───────────────────────────────────────────────────────────
   // VLC must be launched with:

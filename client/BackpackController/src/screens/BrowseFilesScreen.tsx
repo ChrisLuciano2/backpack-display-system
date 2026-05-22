@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect} from 'react';
 import {
   ActivityIndicator,
-  FlatList,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -9,9 +9,80 @@ import {
 } from 'react-native';
 import {useBluetooth} from '../context/BluetoothContext';
 
+// Emoji icon for a file based on its extension
+function fileIcon(name: string, isActive: boolean): string {
+  if (isActive) {return '▶';}
+  const ext = name.split('.').pop()?.toLowerCase() ?? '';
+  if (['gif'].includes(ext))                          {return '🎞';}
+  if (['jpg', 'jpeg', 'png', 'webp'].includes(ext))  {return '🖼️';}
+  return '🎬';
+}
+
+interface SectionProps {
+  title: string;
+  emoji: string;
+  files: string[];
+  connected: boolean;
+  activeFile: string | null;
+  activeStatus: string;
+  onPlay: (file: string) => void;
+}
+
+function Section({title, emoji, files, connected, activeFile, activeStatus, onPlay}: SectionProps) {
+  if (files.length === 0) {return null;}
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionEmoji}>{emoji}</Text>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        <Text style={styles.sectionCount}>{files.length}</Text>
+      </View>
+      <View style={styles.sectionList}>
+        {files.map((item, index) => {
+          const isActive =
+            activeFile === item &&
+            (activeStatus === 'playing' || activeStatus === 'paused');
+          return (
+            <React.Fragment key={item}>
+              <TouchableOpacity
+                style={[styles.fileRow, isActive && styles.fileRowActive]}
+                onPress={() => onPlay(item)}
+                disabled={!connected}>
+                <Text style={styles.fileIconText}>
+                  {fileIcon(item, isActive)}
+                </Text>
+                <Text
+                  style={[styles.fileName, isActive && styles.fileNameActive]}
+                  numberOfLines={1}>
+                  {item}
+                </Text>
+                {isActive && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>
+                      {activeStatus === 'playing' ? 'Playing' : 'Paused'}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              {index < files.length - 1 && <View style={styles.separator} />}
+            </React.Fragment>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 export default function BrowseFilesScreen() {
-  const {connected, fileList, piStatus, sendCommand, requestFileList} =
-    useBluetooth();
+  const {
+    connected,
+    fileList,
+    movieList,
+    mediaList,
+    piStatus,
+    sendCommand,
+    requestFileList,
+  } = useBluetooth();
 
   useEffect(() => {
     if (connected && fileList.length === 0) {
@@ -26,40 +97,14 @@ export default function BrowseFilesScreen() {
     [sendCommand],
   );
 
-  const renderItem = useCallback(
-    ({item}: {item: string}) => {
-      const isPlaying =
-        piStatus.file === item &&
-        (piStatus.status === 'playing' || piStatus.status === 'paused');
-
-      return (
-        <TouchableOpacity
-          style={[styles.fileRow, isPlaying && styles.fileRowActive]}
-          onPress={() => onPlay(item)}
-          disabled={!connected}>
-          <Text style={styles.fileIcon}>{isPlaying ? '▶' : '🎬'}</Text>
-          <Text
-            style={[styles.fileName, isPlaying && styles.fileNameActive]}
-            numberOfLines={1}>
-            {item}
-          </Text>
-          {isPlaying && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                {piStatus.status === 'playing' ? 'Playing' : 'Paused'}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      );
-    },
-    [connected, onPlay, piStatus.file, piStatus.status],
-  );
+  const totalCount = fileList.length;
+  const hasGroups = movieList.length > 0 || mediaList.length > 0;
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Media Files</Text>
+        <Text style={styles.title}>Browse</Text>
         <TouchableOpacity
           style={[styles.refreshBtn, !connected && styles.disabledBtn]}
           onPress={requestFileList}
@@ -68,6 +113,7 @@ export default function BrowseFilesScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Body */}
       {!connected ? (
         <View style={styles.centered}>
           <Text style={styles.emptyIcon}>📡</Text>
@@ -76,25 +122,62 @@ export default function BrowseFilesScreen() {
             Go to Settings to connect via Bluetooth
           </Text>
         </View>
-      ) : fileList.length === 0 ? (
+      ) : totalCount === 0 ? (
         <View style={styles.centered}>
           <ActivityIndicator color="#2196F3" size="large" />
-          <Text style={styles.emptyText}>Loading files...</Text>
+          <Text style={styles.emptyText}>Loading files…</Text>
         </View>
       ) : (
-        <FlatList
-          data={fileList}
-          keyExtractor={item => item}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-        />
-      )}
+        <ScrollView contentContainerStyle={styles.scroll}>
+          {hasGroups ? (
+            <>
+              <Section
+                title="Movies"
+                emoji="🎬"
+                files={movieList}
+                connected={connected}
+                activeFile={piStatus.file}
+                activeStatus={piStatus.status}
+                onPlay={onPlay}
+              />
+              <Section
+                title="Media"
+                emoji="🖼️"
+                files={mediaList}
+                connected={connected}
+                activeFile={piStatus.file}
+                activeStatus={piStatus.status}
+                onPlay={onPlay}
+              />
+            </>
+          ) : (
+            // Fallback: server hasn't sent grouped data yet — show flat list
+            <View style={styles.section}>
+              <View style={styles.sectionList}>
+                {fileList.map((item, index) => (
+                  <React.Fragment key={item}>
+                    <TouchableOpacity
+                      style={styles.fileRow}
+                      onPress={() => onPlay(item)}
+                      disabled={!connected}>
+                      <Text style={styles.fileIconText}>🎬</Text>
+                      <Text style={styles.fileName} numberOfLines={1}>
+                        {item}
+                      </Text>
+                    </TouchableOpacity>
+                    {index < fileList.length - 1 && (
+                      <View style={styles.separator} />
+                    )}
+                  </React.Fragment>
+                ))}
+              </View>
+            </View>
+          )}
 
-      {connected && fileList.length > 0 && (
-        <Text style={styles.countText}>
-          {fileList.length} file{fileList.length !== 1 ? 's' : ''} on Pi
-        </Text>
+          <Text style={styles.countText}>
+            {totalCount} file{totalCount !== 1 ? 's' : ''} on Pi
+          </Text>
+        </ScrollView>
       )}
     </View>
   );
@@ -133,20 +216,50 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-  list: {
-    paddingVertical: 8,
+  scroll: {
+    paddingBottom: 24,
+  },
+  section: {
+    marginTop: 16,
+    marginHorizontal: 16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  sectionEmoji: {
+    fontSize: 16,
+  },
+  sectionTitle: {
+    color: '#9E9E9E',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    flex: 1,
+  },
+  sectionCount: {
+    color: '#444',
+    fontSize: 12,
+  },
+  sectionList: {
+    backgroundColor: '#1E1E1E',
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   fileRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 14,
     gap: 12,
   },
   fileRowActive: {
     backgroundColor: '#1A2A3A',
   },
-  fileIcon: {
+  fileIconText: {
     fontSize: 20,
     width: 28,
     textAlign: 'center',
@@ -173,8 +286,8 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: 1,
-    backgroundColor: '#1E1E1E',
-    marginLeft: 56,
+    backgroundColor: '#2a2a2a',
+    marginLeft: 54,
   },
   centered: {
     flex: 1,
@@ -197,9 +310,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   countText: {
-    color: '#616161',
+    color: '#444',
     fontSize: 12,
     textAlign: 'center',
-    paddingVertical: 8,
+    paddingVertical: 16,
   },
 });

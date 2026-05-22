@@ -6,7 +6,7 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { MEDIA_DIR, MEDIA_EXTS } = require('./config');
+const { MEDIA_DIR, MEDIA_EXTS, IMAGE_EXTS } = require('./config');
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
@@ -53,4 +53,23 @@ function fileExists(filename) {
   return resolveFile(filename) !== null;
 }
 
-module.exports = { listFiles, resolveFile, fileExists };
+/**
+ * Returns files grouped into two categories:
+ *   movies — video files (.mp4, .mkv, etc.)
+ *   media  — images and GIFs (.jpg, .png, .gif, etc.)
+ */
+function listFilesGrouped() {
+  const all = listFiles();
+  const movies = all.filter(f => !IMAGE_EXTS.includes(path.extname(f).toLowerCase()));
+  const media  = all.filter(f =>  IMAGE_EXTS.includes(path.extname(f).toLowerCase()));
+  return { movies, media };
+}
+
+/**
+ * Returns true if the given file is an image/GIF (not a video).
+ */
+function isImageFile(filename) {
+  return IMAGE_EXTS.includes(path.extname(filename).toLowerCase());
+}
+
+module.exports = { listFiles, listFilesGrouped, resolveFile, fileExists, isImageFile };

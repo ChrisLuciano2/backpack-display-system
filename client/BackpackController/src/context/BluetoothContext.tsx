@@ -18,6 +18,8 @@ interface BluetoothContextValue {
   pairedDevices: BluetoothDevice[];
   piStatus: PiStatus;
   fileList: string[];
+  movieList: string[];
+  mediaList: string[];
   error: string | null;
   piIp: string;
   setPiIp: (ip: string) => void;
@@ -47,6 +49,8 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
   const [pairedDevices, setPairedDevices] = useState<BluetoothDevice[]>([]);
   const [piStatus, setPiStatus] = useState<PiStatus>(DEFAULT_STATUS);
   const [fileList, setFileList] = useState<string[]>([]);
+  const [movieList, setMovieList] = useState<string[]>([]);
+  const [mediaList, setMediaList] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [piIp, setPiIp] = useState<string>('');
 
@@ -83,6 +87,12 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
         const msg = JSON.parse(trimmed);
         if (Array.isArray(msg.files)) {
           setFileList(msg.files);
+        }
+        if (Array.isArray(msg.movies)) {
+          setMovieList(msg.movies);
+        }
+        if (Array.isArray(msg.media)) {
+          setMediaList(msg.media);
         }
         if (msg.status) {
           setPiStatus({
@@ -155,6 +165,8 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
           setConnectedDevice(null);
           setPiStatus(DEFAULT_STATUS);
           setFileList([]);
+          setMovieList([]);
+          setMediaList([]);
         };
 
         // ── Data subscription ───────────────────────────────────────────────
@@ -216,6 +228,8 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
     setConnectedDevice(null);
     setPiStatus(DEFAULT_STATUS);
     setFileList([]);
+    setMovieList([]);
+    setMediaList([]);
   }, [cleanup]);
 
   const sendCommand = useCallback(async (cmd: PiCommand) => {
@@ -242,6 +256,8 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
         pairedDevices,
         piStatus,
         fileList,
+        movieList,
+        mediaList,
         error,
         piIp,
         setPiIp,

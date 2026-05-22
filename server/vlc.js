@@ -85,9 +85,21 @@ module.exports = {
     return payload;
   },
 
-  // Play a specific file (absolute path on Pi filesystem)
-  async playFile(absolutePath) {
+  // Play a specific file (absolute path on Pi filesystem).
+  // isImage: true for .gif/.jpg/.png — tells VLC to hold the image
+  // indefinitely (-1) instead of the default 10-second timeout, and
+  // to loop GIFs continuously.
+  async playFile(absolutePath, isImage = false) {
     const uri = 'file://' + absolutePath;
+    if (isImage) {
+      // image-duration=-1 : display forever until stopped
+      // input-repeat=65535: loop GIF animation continuously
+      return vlcGet({
+        command: 'in_play',
+        input: uri,
+        option: 'image-duration=-1 :input-repeat=65535',
+      });
+    }
     return vlcGet({ command: 'in_play', input: uri });
   },
 
