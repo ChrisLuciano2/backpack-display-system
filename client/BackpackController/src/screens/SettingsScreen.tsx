@@ -2,7 +2,6 @@ import React, {useCallback, useEffect, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   ScrollView,
   StyleSheet,
   Text,
@@ -170,13 +169,16 @@ export default function SettingsScreen() {
           </Text>
         </View>
       ) : (
-        <FlatList
-          data={pairedDevices}
-          keyExtractor={item => item.address}
-          renderItem={renderDevice}
-          style={styles.deviceList}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-        />
+        <View style={styles.deviceList}>
+          {pairedDevices.map((item, index) => (
+            <React.Fragment key={item.address}>
+              {renderDevice({item})}
+              {index < pairedDevices.length - 1 && (
+                <View style={styles.separator} />
+              )}
+            </React.Fragment>
+          ))}
+        </View>
       )}
 
       {/* Pi IP address for WiFi uploads */}
