@@ -11,10 +11,22 @@
 
 'use strict';
 
-const http = require('http');
-const fs   = require('fs');
-const path = require('path');
+const http       = require('http');
+const fs         = require('fs');
+const path       = require('path');
+const { execFile, execSync } = require('child_process');
 const { MEDIA_DIR, UPLOAD_PORT } = require('./config');
+
+// Check once at startup whether ffmpeg is available
+let FFMPEG_AVAILABLE = false;
+try {
+  execSync('ffmpeg -version', { stdio: 'ignore' });
+  FFMPEG_AVAILABLE = true;
+  console.log('[upload] ffmpeg found — GIFs will be converted to MP4');
+} catch {
+  console.warn('[upload] ffmpeg not found — GIFs will be saved as-is (may not animate in VLC)');
+  console.warn('[upload] Install with: sudo apt install ffmpeg');
+}
 
 // Accepted file extensions
 const ALLOWED_EXTS = new Set([
@@ -131,10 +143,50 @@ function streamUpload(req, res, boundary) {
 
     writeStream.on('finish', () => {
       if (finished) return;
+
+      const savedPath = path.join(MEDIA_DIR, savedName);
+      const ext       = path.extname(savedName).toLowerCase();
+
+      // ── GIF → MP4 conversion ─────────────────────────────────────────────
+      // VLC only shows the first frame of a GIF. Convert to MP4 so it
+      // animates and loops properly. Requires ffmpeg on the Pi.
+      if (ext === '.gif' && FFMPEG_AVAILABLE) {
+        const mp4Name = savedName.replace(/\.gif$/i, '.mp4');
+        const mp4Path = path.join(MEDIA_DIR, mp4Name);
+        console.log(`[upload] Converting "${savedName}" → "${mp4Name}"…`);
+
+        execFile('ffmpeg', [
+          '-i', savedPath,
+          '-movflags', 'faststart',
+          '-pix_fmt', 'yuv420p',
+          // Ensure dimensions are divisible by 2 (H.264 requirement)
+          '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+          '-y',   // overwrite if exists
+          mp4Path,
+        ], (err) => {
+          if (err) {
+            console.error('[upload] ffmpeg conversion failed:', err.message);
+            // Fall back: keep the original GIF
+            finished = true;
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, file: savedName, converted: false }));
+            return;
+          }
+          // Remove original GIF, respond with the MP4 name
+          try { fs.unlinkSync(savedPath); } catch {}
+          const { size } = fs.statSync(mp4Path);
+          console.log(`[upload] Converted to "${mp4Name}" (${(size / 1e6).toFixed(1)} MB)`);
+          finished = true;
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, file: mp4Name, converted: true, size }));
+        });
+        return; // response sent inside callback above
+      }
+
+      // ── Normal file ──────────────────────────────────────────────────────
       finished = true;
-      // Report file size
       try {
-        const { size } = fs.statSync(path.join(MEDIA_DIR, savedName));
+        const { size } = fs.statSync(savedPath);
         console.log(`[upload] Saved "${savedName}" (${(size / 1e6).toFixed(1)} MB)`);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, file: savedName, size }));

@@ -29,6 +29,7 @@ export default function NowPlayingScreen() {
   const hasMedia = status === 'playing' || status === 'paused';
   const progress = duration > 0 ? pos / duration : 0;
   const [displayMode, setDisplayMode] = useState<DisplayMode>('contain');
+  const [currentAngle, setCurrentAngle] = useState<0 | 90 | 180 | 270>(0);
 
   const onPlayPause = useCallback(() => {
     sendCommand(isPlaying ? {action: 'pause'} : {action: 'resume'});
@@ -63,6 +64,7 @@ export default function NowPlayingScreen() {
 
   const onRotate = useCallback(
     (angle: number) => {
+      setCurrentAngle(angle as 0 | 90 | 180 | 270);
       sendCommand({action: 'rotate', angle});
     },
     [sendCommand],
@@ -71,9 +73,11 @@ export default function NowPlayingScreen() {
   const onDisplayMode = useCallback(
     (mode: DisplayMode) => {
       setDisplayMode(mode);
-      sendCommand({action: 'displaymode', mode});
+      // Portrait when rotated 90° or 270°, landscape otherwise
+      const isPortrait = currentAngle === 90 || currentAngle === 270;
+      sendCommand({action: 'displaymode', mode, ratio: isPortrait ? '9:16' : '16:9'});
     },
-    [sendCommand],
+    [sendCommand, currentAngle],
   );
 
   return (

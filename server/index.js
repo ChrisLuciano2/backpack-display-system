@@ -147,7 +147,8 @@ async function dispatch(cmd) {
           send({ error: 'displaymode requires mode: contain, cover, or stretch' });
           return;
         }
-        await vlc.setDisplayMode(mode);
+        const ratio = ['16:9', '9:16'].includes(cmd.ratio) ? cmd.ratio : '16:9';
+        await vlc.setDisplayMode(mode, ratio);
         break;
       }
 

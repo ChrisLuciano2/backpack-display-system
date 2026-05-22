@@ -142,17 +142,17 @@ module.exports = {
   //   'contain'  → letterbox/pillarbox, black bars, original aspect ratio preserved
   //   'cover'    → crop to fill the screen (no black bars, edges trimmed)
   //   'stretch'  → force 16:9, may distort non-16:9 content
-  async setDisplayMode(mode) {
+  // ratio should match the physical screen orientation:
+  //   '16:9' when landscape (0° / 180°)
+  //   '9:16' when portrait  (90° / 270°)
+  async setDisplayMode(mode, ratio = '16:9') {
     if (mode === 'contain') {
-      // Reset both crop and aspect ratio override back to VLC defaults
       await vlcGet({ command: 'crop',        val: 'None' });
       await vlcGet({ command: 'aspectratio', val: 'None' });
     } else if (mode === 'cover') {
-      // Crop video content to 16:9 — fills the screen, trims edges
-      await vlcGet({ command: 'crop', val: '16:9' });
+      await vlcGet({ command: 'crop', val: ratio });
     } else if (mode === 'stretch') {
-      // Force 16:9 aspect ratio — stretches non-16:9 content to fill screen
-      await vlcGet({ command: 'aspectratio', val: '16:9' });
+      await vlcGet({ command: 'aspectratio', val: ratio });
     }
   },
 
