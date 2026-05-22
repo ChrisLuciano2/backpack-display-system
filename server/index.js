@@ -27,6 +27,7 @@
 const { BluetoothSerialPortServer } = require('bluetooth-serial-port');
 const vlc   = require('./vlc');
 const media = require('./media');
+const { startUploadServer } = require('./upload');
 const { BT_UUID, BT_CHANNEL, STATUS_INTERVAL_MS } = require('./config');
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -283,6 +284,7 @@ async function boot() {
   }
 
   console.log('');
+  startUploadServer();
   startListening();
 }
 

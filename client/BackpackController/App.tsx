@@ -7,6 +7,7 @@ import {BluetoothProvider, useBluetooth} from './src/context/BluetoothContext';
 import BrowseFilesScreen from './src/screens/BrowseFilesScreen';
 import NowPlayingScreen from './src/screens/NowPlayingScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import UploadScreen from './src/screens/UploadScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -41,6 +42,14 @@ function AppTabs() {
         options={{
           tabBarIcon: () => <TabIcon label="Browse" emoji="🎬" />,
           tabBarLabel: 'Browse',
+        }}
+      />
+      <Tab.Screen
+        name="Upload"
+        component={UploadScreen}
+        options={{
+          tabBarIcon: () => <TabIcon label="Upload" emoji="⬆️" />,
+          tabBarLabel: 'Upload',
         }}
       />
       <Tab.Screen

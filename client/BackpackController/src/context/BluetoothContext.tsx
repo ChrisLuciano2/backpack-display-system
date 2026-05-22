@@ -19,6 +19,8 @@ interface BluetoothContextValue {
   piStatus: PiStatus;
   fileList: string[];
   error: string | null;
+  piIp: string;
+  setPiIp: (ip: string) => void;
   requestPermissions: () => Promise<boolean>;
   loadPairedDevices: () => Promise<void>;
   connect: (device: BluetoothDevice) => Promise<void>;
@@ -46,6 +48,7 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
   const [piStatus, setPiStatus] = useState<PiStatus>(DEFAULT_STATUS);
   const [fileList, setFileList] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [piIp, setPiIp] = useState<string>('');
 
   const deviceRef = useRef<BluetoothDevice | null>(null);
   const dataSub = useRef<any>(null);
@@ -240,6 +243,8 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
         piStatus,
         fileList,
         error,
+        piIp,
+        setPiIp,
         requestPermissions,
         loadPairedDevices,
         connect,

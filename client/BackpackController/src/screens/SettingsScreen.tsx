@@ -3,8 +3,10 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -21,11 +23,15 @@ export default function SettingsScreen() {
     connectedDevice,
     pairedDevices,
     error,
+    piIp,
+    setPiIp,
     requestPermissions,
     loadPairedDevices,
     connect,
     disconnect,
   } = useBluetooth();
+
+  const [ipDraft, setIpDraft] = useState(piIp);
 
   const [loading, setLoading] = useState(false);
 
@@ -109,7 +115,7 @@ export default function SettingsScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
       {/* Connection status card */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
@@ -173,12 +179,42 @@ export default function SettingsScreen() {
         />
       )}
 
+      {/* Pi IP address for WiFi uploads */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Wi-Fi Upload Settings</Text>
+      </View>
+      <View style={styles.ipCard}>
+        <Text style={styles.ipLabel}>Pi IP Address</Text>
+        <Text style={styles.ipHint}>
+          Run <Text style={styles.ipCode}>hostname -I</Text> on the Pi to find it
+        </Text>
+        <View style={styles.ipRow}>
+          <TextInput
+            style={styles.ipInput}
+            value={ipDraft}
+            onChangeText={setIpDraft}
+            placeholder="e.g. 192.168.1.42"
+            placeholderTextColor="#616161"
+            keyboardType="decimal-pad"
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
+          <TouchableOpacity
+            style={styles.ipSaveBtn}
+            onPress={() => {
+              setPiIp(ipDraft.trim());
+              Alert.alert('Saved', `Pi IP set to ${ipDraft.trim() || '(cleared)'}`);
+            }}>
+            <Text style={styles.ipSaveBtnText}>Save</Text>
+          </TouchableOpacity>
+        </View>
+        {piIp ? (
+          <Text style={styles.ipSaved}>✓ Saved: {piIp}:3001</Text>
+        ) : null}
+      </View>
+
       {/* Info section */}
       <View style={styles.infoSection}>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Screen rotation</Text>
-          <Text style={styles.infoValue}>90° (set in Pi display settings)</Text>
-        </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Protocol</Text>
           <Text style={styles.infoValue}>Bluetooth Classic SPP</Text>
@@ -188,7 +224,7 @@ export default function SettingsScreen() {
           <Text style={styles.infoValue}>{APP_VERSION}</Text>
         </View>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -332,7 +368,8 @@ const styles = StyleSheet.create({
   },
   infoSection: {
     margin: 16,
-    marginTop: 'auto',
+    marginTop: 8,
+    marginBottom: 32,
     backgroundColor: '#1E1E1E',
     borderRadius: 12,
     overflow: 'hidden',
@@ -351,5 +388,56 @@ const styles = StyleSheet.create({
   infoValue: {
     color: '#FFFFFF',
     fontSize: 14,
+  },
+  ipCard: {
+    backgroundColor: '#1E1E1E',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 12,
+    padding: 16,
+    gap: 8,
+  },
+  ipLabel: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  ipHint: {
+    color: '#616161',
+    fontSize: 12,
+  },
+  ipCode: {
+    color: '#9E9E9E',
+    fontFamily: 'monospace',
+  },
+  ipRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  ipInput: {
+    flex: 1,
+    backgroundColor: '#2a2a2a',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: '#FFFFFF',
+    fontSize: 15,
+  },
+  ipSaveBtn: {
+    backgroundColor: '#2196F3',
+    borderRadius: 8,
+    paddingHorizontal: 18,
+    justifyContent: 'center',
+  },
+  ipSaveBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  ipSaved: {
+    color: '#4CAF50',
+    fontSize: 12,
+    marginTop: 2,
   },
 });

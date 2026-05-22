@@ -24,4 +24,8 @@ module.exports = {
 
   // How often (ms) to broadcast status to phone while media is playing
   STATUS_INTERVAL_MS: 2000,
+
+  // ── Upload HTTP server ─────────────────────────────────────────────────────
+  // Phone uploads files to Pi over WiFi on this port
+  UPLOAD_PORT: process.env.UPLOAD_PORT || 3001,
 };
