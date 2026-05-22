@@ -138,6 +138,20 @@ async function dispatch(cmd) {
         break;
       }
 
+      // ── Display rotation ──────────────────────────────────────────────────
+      case 'rotate': {
+        const angle = Number(cmd.angle);
+        if (![0, 90, 180, 270].includes(angle)) {
+          send({ error: 'rotate requires angle: 0, 90, 180, or 270' });
+          return;
+        }
+        const transform = angle === 0 ? 'normal' : String(angle);
+        const { execSync } = require('child_process');
+        execSync(`wlr-randr --output HDMI-A-1 --transform ${transform}`);
+        send({ rotated: angle });
+        return;
+      }
+
       // ── File list ─────────────────────────────────────────────────────────
       case 'list': {
         const files = media.listFiles();

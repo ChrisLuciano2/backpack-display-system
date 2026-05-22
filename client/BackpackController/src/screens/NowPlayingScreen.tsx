@@ -52,6 +52,13 @@ export default function NowPlayingScreen() {
     [sendCommand],
   );
 
+  const onRotate = useCallback(
+    (angle: number) => {
+      sendCommand({action: 'rotate', angle});
+    },
+    [sendCommand],
+  );
+
   return (
     <View style={styles.container}>
       {/* Status bar */}
@@ -153,6 +160,20 @@ export default function NowPlayingScreen() {
           />
         </View>
         <Text style={styles.volumeLabel}>🔊</Text>
+      </View>
+
+      {/* Rotation */}
+      <View style={styles.rotateRow}>
+        <Text style={styles.rotateLabel}>🔄</Text>
+        {[0, 90, 180, 270].map(angle => (
+          <TouchableOpacity
+            key={angle}
+            style={[styles.rotateBtn, !connected && styles.disabledBtn]}
+            onPress={() => onRotate(angle)}
+            disabled={!connected}>
+            <Text style={styles.rotateBtnText}>{angle}°</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {!connected && (
@@ -263,6 +284,31 @@ const styles = StyleSheet.create({
     fontSize: 20,
     width: 28,
     textAlign: 'center',
+  },
+  rotateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  rotateLabel: {
+    fontSize: 18,
+    marginRight: 4,
+  },
+  rotateBtn: {
+    backgroundColor: '#1E1E1E',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  disabledBtn: {
+    opacity: 0.3,
+  },
+  rotateBtnText: {
+    color: '#2196F3',
+    fontSize: 14,
+    fontWeight: '600',
   },
   hint: {
     color: '#616161',

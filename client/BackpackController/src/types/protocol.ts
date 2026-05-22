@@ -17,4 +17,5 @@ export type PiCommand =
   | { action: 'prev' }
   | { action: 'volume'; level: number }
   | { action: 'seek'; seconds: number }
-  | { action: 'list' };
+  | { action: 'list' }
+  | { action: 'rotate'; angle: 0 | 90 | 180 | 270 };
