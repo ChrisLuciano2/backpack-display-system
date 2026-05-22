@@ -1,4 +1,4 @@
-import React, {useCallback} from 'react';
+import React, {useCallback, useState} from 'react';
 import {
   StyleSheet,
   Text,
@@ -14,12 +14,21 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+type DisplayMode = 'contain' | 'cover' | 'stretch';
+
+const DISPLAY_MODES: {mode: DisplayMode; label: string; hint: string}[] = [
+  {mode: 'contain', label: 'Fit',     hint: 'Black bars, full content'},
+  {mode: 'cover',   label: 'Fill',    hint: 'Crops edges to fill screen'},
+  {mode: 'stretch', label: 'Stretch', hint: 'Stretches to fill screen'},
+];
+
 export default function NowPlayingScreen() {
   const {connected, piStatus, sendCommand} = useBluetooth();
   const {status, file, pos, duration, volume} = piStatus;
   const isPlaying = status === 'playing';
   const hasMedia = status === 'playing' || status === 'paused';
   const progress = duration > 0 ? pos / duration : 0;
+  const [displayMode, setDisplayMode] = useState<DisplayMode>('contain');
 
   const onPlayPause = useCallback(() => {
     sendCommand(isPlaying ? {action: 'pause'} : {action: 'resume'});
@@ -55,6 +64,14 @@ export default function NowPlayingScreen() {
   const onRotate = useCallback(
     (angle: number) => {
       sendCommand({action: 'rotate', angle});
+    },
+    [sendCommand],
+  );
+
+  const onDisplayMode = useCallback(
+    (mode: DisplayMode) => {
+      setDisplayMode(mode);
+      sendCommand({action: 'displaymode', mode});
     },
     [sendCommand],
   );
@@ -172,6 +189,30 @@ export default function NowPlayingScreen() {
             onPress={() => onRotate(angle)}
             disabled={!connected}>
             <Text style={styles.rotateBtnText}>{angle}°</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Display fit mode */}
+      <View style={styles.displayModeRow}>
+        <Text style={styles.displayModeLabel}>🖥</Text>
+        {DISPLAY_MODES.map(({mode, label}) => (
+          <TouchableOpacity
+            key={mode}
+            style={[
+              styles.displayModeBtn,
+              displayMode === mode && styles.displayModeBtnActive,
+              !connected && styles.disabledBtn,
+            ]}
+            onPress={() => onDisplayMode(mode)}
+            disabled={!connected}>
+            <Text
+              style={[
+                styles.displayModeBtnText,
+                displayMode === mode && styles.displayModeBtnTextActive,
+              ]}>
+              {label}
+            </Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -309,6 +350,38 @@ const styles = StyleSheet.create({
     color: '#2196F3',
     fontSize: 14,
     fontWeight: '600',
+  },
+  displayModeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  displayModeLabel: {
+    fontSize: 18,
+    marginRight: 4,
+  },
+  displayModeBtn: {
+    backgroundColor: '#1E1E1E',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+  },
+  displayModeBtnActive: {
+    backgroundColor: '#1A2A3A',
+    borderColor: '#2196F3',
+  },
+  displayModeBtnText: {
+    color: '#9E9E9E',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  displayModeBtnTextActive: {
+    color: '#2196F3',
+    fontWeight: '700',
   },
   hint: {
     color: '#616161',

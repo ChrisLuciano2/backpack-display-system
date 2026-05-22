@@ -1,6 +1,7 @@
 import React, {useCallback, useRef, useState} from 'react';
 import {
   Alert,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +13,13 @@ import type {DocumentPickerAsset} from '@react-native-documents/picker';
 import {useBluetooth} from '../context/BluetoothContext';
 
 const UPLOAD_PORT = 3001;
+
+type FitMode = 'contain' | 'cover' | 'stretch';
+const FIT_MODES: {mode: FitMode; label: string; desc: string}[] = [
+  {mode: 'contain', label: 'Fit',     desc: 'Black bars'},
+  {mode: 'cover',   label: 'Fill',    desc: 'Crops edges'},
+  {mode: 'stretch', label: 'Stretch', desc: 'May distort'},
+];
 
 // File types the Pi can play / display
 const PICK_TYPES = [
@@ -32,9 +40,8 @@ function formatBytes(bytes: number): string {
 export default function UploadScreen() {
   const {piIp} = useBluetooth();
 
-  const [pickedFile, setPickedFile] = useState<DocumentPickerAsset | null>(
-    null,
-  );
+  const [pickedFile, setPickedFile] = useState<DocumentPickerAsset | null>(null);
+  const [fitMode, setFitMode] = useState<FitMode>('contain');
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0); // 0..1
   const [result, setResult] = useState<{ok: boolean; message: string} | null>(
@@ -234,6 +241,65 @@ export default function UploadScreen() {
                 : ''}
             </Text>
           </View>
+        </View>
+      )}
+
+      {/* Pi Screen Preview */}
+      {pickedFile && (
+        <View style={styles.previewSection}>
+          <Text style={styles.previewTitle}>Screen Preview</Text>
+          <Text style={styles.previewSub}>
+            Pi display is 16:9 landscape — adjust fit below
+          </Text>
+
+          {/* 16:9 screen frame */}
+          <View style={styles.screenFrame}>
+            {/* Notch/bezel illusion */}
+            <View style={styles.screenInner}>
+              {(pickedFile.type ?? '').startsWith('image') ? (
+                <Image
+                  source={{uri: pickedFile.fileCopyUri ?? pickedFile.uri}}
+                  style={styles.previewImage}
+                  resizeMode={fitMode}
+                />
+              ) : (
+                // Video — can't show thumbnail without extra library
+                <View style={styles.videoPlaceholder}>
+                  <Text style={styles.videoPlaceholderIcon}>🎬</Text>
+                  <Text style={styles.videoPlaceholderText}>
+                    {fitMode === 'contain' ? 'Fit — letterbox bars' :
+                     fitMode === 'cover'   ? 'Fill — edges cropped' :
+                                            'Stretch — fills screen'}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Fit mode selector */}
+          <View style={styles.fitRow}>
+            {FIT_MODES.map(({mode, label, desc}) => (
+              <TouchableOpacity
+                key={mode}
+                style={[
+                  styles.fitBtn,
+                  fitMode === mode && styles.fitBtnActive,
+                ]}
+                onPress={() => setFitMode(mode)}>
+                <Text
+                  style={[
+                    styles.fitBtnLabel,
+                    fitMode === mode && styles.fitBtnLabelActive,
+                  ]}>
+                  {label}
+                </Text>
+                <Text style={styles.fitBtnDesc}>{desc}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={styles.previewNote}>
+            💡 This mode will be applied when you play this file on the Pi.
+          </Text>
         </View>
       )}
 
@@ -459,6 +525,88 @@ const styles = StyleSheet.create({
   resultHint: {
     color: '#9E9E9E',
     fontSize: 12,
+  },
+  previewSection: {
+    backgroundColor: '#1E1E1E',
+    borderRadius: 12,
+    padding: 16,
+    gap: 10,
+  },
+  previewTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  previewSub: {
+    color: '#616161',
+    fontSize: 12,
+  },
+  // 16:9 screen frame — use paddingTop trick to enforce aspect ratio
+  screenFrame: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    backgroundColor: '#000000',
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#2a2a2a',
+    overflow: 'hidden',
+  },
+  screenInner: {
+    flex: 1,
+    backgroundColor: '#0a0a0a',
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  videoPlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  videoPlaceholderIcon: {
+    fontSize: 36,
+  },
+  videoPlaceholderText: {
+    color: '#616161',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  fitRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  fitBtn: {
+    flex: 1,
+    backgroundColor: '#2a2a2a',
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+    gap: 2,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  fitBtnActive: {
+    backgroundColor: '#1A2A3A',
+    borderColor: '#2196F3',
+  },
+  fitBtnLabel: {
+    color: '#9E9E9E',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  fitBtnLabelActive: {
+    color: '#2196F3',
+  },
+  fitBtnDesc: {
+    color: '#444',
+    fontSize: 10,
+  },
+  previewNote: {
+    color: '#444',
+    fontSize: 11,
+    textAlign: 'center',
   },
   instructions: {
     backgroundColor: '#1E1E1E',

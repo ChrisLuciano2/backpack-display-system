@@ -139,6 +139,17 @@ async function dispatch(cmd) {
         break;
       }
 
+      // ── Display fit mode ──────────────────────────────────────────────────
+      case 'displaymode': {
+        const mode = cmd.mode;
+        if (!['contain', 'cover', 'stretch'].includes(mode)) {
+          send({ error: 'displaymode requires mode: contain, cover, or stretch' });
+          return;
+        }
+        await vlc.setDisplayMode(mode);
+        break;
+      }
+
       // ── Display rotation ──────────────────────────────────────────────────
       case 'rotate': {
         const angle = Number(cmd.angle);
