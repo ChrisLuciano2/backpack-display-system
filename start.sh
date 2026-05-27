@@ -15,7 +15,7 @@ echo "╚═══════════════════════�
 echo "Project: $PROJECT_DIR"
 echo ""
 
-# ── Wayland display ──────────────────────────────────────────────────────────
+# ── Wayland display ───────────────────────────────────────────────────────────
 # When run as a systemd service the WAYLAND_DISPLAY env var may not be
 # inherited automatically. Detect the live socket instead.
 if [ -z "$WAYLAND_DISPLAY" ]; then
@@ -34,7 +34,19 @@ else
   echo "[display] WARNING: no Wayland socket found — video output may fail"
 fi
 
-# ── Audio ────────────────────────────────────────────────────────────────────
+# ── Kiosk cleanup ─────────────────────────────────────────────────────────────
+# Kill the desktop panel so it doesn't float above VLC.
+# Kill any previous swaybg instance before starting a fresh one.
+pkill wf-panel-pi 2>/dev/null || true
+pkill swaybg     2>/dev/null || true
+echo "[kiosk] Panel hidden"
+
+# Fill the entire screen with solid black so the desktop never shows through
+# VLC's letterbox bars or between clips.
+swaybg -c 000000 &
+echo "[kiosk] Black background active"
+
+# ── Audio ─────────────────────────────────────────────────────────────────────
 # WirePlumber sometimes defaults to "Dummy Output" after a fresh boot.
 # Detect this and restart WirePlumber before starting VLC so audio works.
 _audio_ok=false
@@ -56,7 +68,7 @@ else
   echo "[audio] WARNING: audio sink still shows Dummy Output — continuing anyway"
 fi
 
-# ── VLC ──────────────────────────────────────────────────────────────────────
+# ── VLC ───────────────────────────────────────────────────────────────────────
 # Kill any leftover instance from a previous run
 pkill vlc 2>/dev/null && echo "[vlc] Killed existing VLC instance" || true
 sleep 1
@@ -68,6 +80,7 @@ vlc \
   --http-port 8080 \
   --fullscreen \
   --no-video-title-show \
+  --vout wl \
   --avcodec-hw=any \
   --quiet &
 
@@ -77,6 +90,6 @@ echo "[vlc] Started (PID $VLC_PID)"
 # Give VLC time to open its HTTP socket before Node.js tries to connect
 sleep 2
 
-# ── Node.js BT + upload server ───────────────────────────────────────────────
+# ── Node.js BT + upload server ────────────────────────────────────────────────
 echo "[server] Starting Node.js server..."
 node "$PROJECT_DIR/server/index.js"
