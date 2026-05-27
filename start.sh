@@ -35,14 +35,21 @@ else
 fi
 
 # ── Kiosk cleanup ─────────────────────────────────────────────────────────────
-# Kill desktop panels so they don't float above VLC.
-# Kill any previous swaybg instance before starting a fresh one.
-pkill wf-panel-pi  2>/dev/null || true
-pkill wf-panel     2>/dev/null || true
-pkill waybar       2>/dev/null || true
-pkill lxpanel      2>/dev/null || true
-pkill swaybg       2>/dev/null || true
+# wf-panel-pi is kept alive by lwrespawn — kill the respawner first,
+# then kill the panel itself so it can't come back.
+pkill -f lwrespawn  2>/dev/null || true
+pkill wf-panel-pi   2>/dev/null || true
+pkill wf-panel      2>/dev/null || true
+pkill waybar        2>/dev/null || true
+pkill lxpanel       2>/dev/null || true
+pkill swaybg        2>/dev/null || true
 echo "[kiosk] Panel hidden"
+
+# ── Display resolution ────────────────────────────────────────────────────────
+# Force 1920x1080 so VLC gets a standard 16:9 canvas.
+# The monitor's native 2256x1504 (3:2) causes VLC to mis-align video.
+wlr-randr --output HDMI-A-1 --mode 1920x1080 2>/dev/null || true
+echo "[display] Resolution set to 1920x1080"
 
 # Fill the entire screen with solid black so the desktop never shows through
 # VLC's letterbox bars or between clips.
@@ -83,7 +90,7 @@ vlc \
   --http-port 8080 \
   --fullscreen \
   --no-video-title-show \
-  --vout gles2 \
+  --vout wl \
   --mouse-hide-timeout=100 \
   --quiet &
 
