@@ -35,10 +35,13 @@ else
 fi
 
 # ── Kiosk cleanup ─────────────────────────────────────────────────────────────
-# Kill the desktop panel so it doesn't float above VLC.
+# Kill desktop panels so they don't float above VLC.
 # Kill any previous swaybg instance before starting a fresh one.
-pkill wf-panel-pi 2>/dev/null || true
-pkill swaybg     2>/dev/null || true
+pkill wf-panel-pi  2>/dev/null || true
+pkill wf-panel     2>/dev/null || true
+pkill waybar       2>/dev/null || true
+pkill lxpanel      2>/dev/null || true
+pkill swaybg       2>/dev/null || true
 echo "[kiosk] Panel hidden"
 
 # Fill the entire screen with solid black so the desktop never shows through
@@ -80,7 +83,8 @@ vlc \
   --http-port 8080 \
   --fullscreen \
   --no-video-title-show \
-  --vout wl \
+  --vout gles2 \
+  --mouse-hide-timeout=100 \
   --quiet &
 
 VLC_PID=$!
