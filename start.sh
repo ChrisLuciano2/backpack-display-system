@@ -81,7 +81,6 @@ vlc \
   --fullscreen \
   --no-video-title-show \
   --vout wl \
-  --avcodec-hw=any \
   --quiet &
 
 VLC_PID=$!
