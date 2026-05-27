@@ -19,4 +19,6 @@ export type PiCommand =
   | { action: 'seek'; seconds: number }
   | { action: 'list' }
   | { action: 'rotate'; angle: 0 | 90 | 180 | 270 }
-  | { action: 'displaymode'; mode: 'contain' | 'cover' | 'stretch'; ratio: '16:9' | '9:16' };
+  | { action: 'displaymode'; mode: 'contain' | 'cover' | 'stretch'; ratio: '16:9' | '9:16' }
+  | { action: 'enqueue'; file: string }
+  | { action: 'clearqueue' };

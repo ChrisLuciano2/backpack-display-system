@@ -166,6 +166,34 @@ async function dispatch(cmd) {
         return;
       }
 
+      // ── Queue management ─────────────────────────────────────────────────
+      // enqueue: add a file to the end of VLC's playlist without interrupting
+      // whatever is currently playing.  VLC auto-advances when the current
+      // item ends so the user never has to open the app again.
+      case 'enqueue': {
+        if (!cmd.file) {
+          send({ error: 'enqueue requires a "file" field' });
+          return;
+        }
+        const fullPath = media.resolveFile(cmd.file);
+        if (!fullPath) {
+          send({ error: 'File not found: ' + cmd.file });
+          return;
+        }
+        await vlc.enqueueFile(fullPath, media.isImageFile(cmd.file));
+        send({ queued: cmd.file });
+        return;   // no generic status send — just confirm the enqueue
+      }
+
+      // clearqueue: empty the VLC playlist (stops playback)
+      case 'clearqueue': {
+        await vlc.clearPlaylist();
+        await new Promise((r) => setTimeout(r, 150));
+        const st = await vlc.buildStatus(false);
+        send(st);
+        return;
+      }
+
       // ── File list ─────────────────────────────────────────────────────────
       case 'list': {
         const { movies, media: mediaFiles } = media.listFilesGrouped();

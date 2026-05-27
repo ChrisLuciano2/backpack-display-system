@@ -2,8 +2,13 @@
  * SeekBar — pure-JS slider with no native dependencies.
  * Works as a drop-in replacement for @react-native-community/slider
  * for both seek-position and volume controls.
+ *
+ * Key design note:
+ *   PanResponder is created once (stored in useRef) so it never loses the
+ *   gesture mid-drag.  Stale-closure risk for props is handled by updating
+ *   disabledRef / onValueChangeRef / onSlidingCompleteRef every render.
  */
-import React, {useCallback, useRef, useState} from 'react';
+import React, {useRef, useState} from 'react';
 import {
   GestureResponderEvent,
   LayoutChangeEvent,
@@ -22,6 +27,11 @@ interface SeekBarProps {
   disabled?: boolean;
 }
 
+// Pure utility — safe to call inside the one-time PanResponder closure
+function clamp(v: number) {
+  return Math.min(1, Math.max(0, v));
+}
+
 export default function SeekBar({
   value,
   onValueChange,
@@ -32,61 +42,67 @@ export default function SeekBar({
   disabled = false,
 }: SeekBarProps) {
   const trackWidth = useRef(0);
-  const [sliding, setSliding] = useState(false);
+  const trackPageX = useRef(0);
+  const trackRef   = useRef<View>(null);
+
+  const [sliding,    setSliding]    = useState(false);
   const [localValue, setLocalValue] = useState(value);
 
-  // Keep localValue in sync when not sliding
+  // ── Mutable refs so the PanResponder always reads the latest prop values ──
+  // These are updated synchronously on every render — before any event fires.
+  const disabledRef           = useRef(disabled);
+  const onValueChangeRef      = useRef(onValueChange);
+  const onSlidingCompleteRef  = useRef(onSlidingComplete);
+  disabledRef.current          = disabled;
+  onValueChangeRef.current     = onValueChange;
+  onSlidingCompleteRef.current = onSlidingComplete;
+
+  // Show localValue while dragging; snap back to server value when idle
   const displayValue = sliding ? localValue : value;
 
-  const clamp = (v: number) => Math.min(1, Math.max(0, v));
-
-  const valueFromX = useCallback(
-    (pageX: number, trackX: number) => {
-      if (trackWidth.current <= 0) {return value;}
-      return clamp((pageX - trackX) / trackWidth.current);
-    },
-    [value],
-  );
-
-  // We need the track's screen X offset to compute values from touch.
-  const trackRef = useRef<View>(null);
-  const trackPageX = useRef(0);
-
-  const measureTrack = useCallback((e: LayoutChangeEvent) => {
+  // Measure track width and absolute X position after layout / orientation change
+  const measureTrack = (e: LayoutChangeEvent) => {
     trackWidth.current = e.nativeEvent.layout.width;
-    // measure absolute position
     trackRef.current?.measure((_x, _y, _w, _h, px) => {
-      trackPageX.current = px;
+      trackPageX.current = px ?? 0;
     });
-  }, []);
+  };
 
+  // Created once — refs guarantee it always sees current prop values
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => !disabled,
-      onMoveShouldSetPanResponder: () => !disabled,
+      onStartShouldSetPanResponder: () => !disabledRef.current,
+      onMoveShouldSetPanResponder:  () => !disabledRef.current,
+
       onPanResponderGrant: (e: GestureResponderEvent) => {
+        if (disabledRef.current) {return;}
         setSliding(true);
         const v = clamp(
           (e.nativeEvent.pageX - trackPageX.current) / trackWidth.current,
         );
         setLocalValue(v);
-        onValueChange?.(v);
+        onValueChangeRef.current?.(v);
       },
+
       onPanResponderMove: (e: GestureResponderEvent) => {
+        if (disabledRef.current) {return;}
         const v = clamp(
           (e.nativeEvent.pageX - trackPageX.current) / trackWidth.current,
         );
         setLocalValue(v);
-        onValueChange?.(v);
+        onValueChangeRef.current?.(v);
       },
+
       onPanResponderRelease: (e: GestureResponderEvent) => {
+        if (disabledRef.current) {return;}
         const v = clamp(
           (e.nativeEvent.pageX - trackPageX.current) / trackWidth.current,
         );
         setLocalValue(v);
         setSliding(false);
-        onSlidingComplete?.(v);
+        onSlidingCompleteRef.current?.(v);
       },
+
       onPanResponderTerminate: () => {
         setSliding(false);
       },
@@ -119,7 +135,7 @@ export default function SeekBar({
   );
 }
 
-const THUMB = 18;
+const THUMB   = 18;
 const TRACK_H = 4;
 
 const styles = StyleSheet.create({

@@ -156,6 +156,26 @@ module.exports = {
     }
   },
 
+  // Add a file to the end of VLC's playlist without starting playback.
+  // Calling this after in_play allows VLC to auto-advance when the current
+  // item finishes.
+  async enqueueFile(absolutePath, isImage = false) {
+    const uri = 'file://' + absolutePath;
+    if (isImage) {
+      return vlcGet({
+        command: 'in_enqueue',
+        input:   uri,
+        option:  'image-duration=-1 :input-repeat=65535',
+      });
+    }
+    return vlcGet({ command: 'in_enqueue', input: uri });
+  },
+
+  // Clear every item from the VLC playlist (stops playback)
+  async clearPlaylist() {
+    return vlcGet({ command: 'pl_empty' });
+  },
+
   // Check if VLC HTTP API is reachable (used at startup)
   async ping() {
     try {

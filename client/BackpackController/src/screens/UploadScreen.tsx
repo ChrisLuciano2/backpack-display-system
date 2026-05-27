@@ -44,9 +44,11 @@ export default function UploadScreen() {
   const [fitMode, setFitMode] = useState<FitMode>('contain');
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0); // 0..1
-  const [result, setResult] = useState<{ok: boolean; message: string} | null>(
-    null,
-  );
+  const [result, setResult] = useState<{
+    ok: boolean;
+    message: string;
+    hint?: string;
+  } | null>(null);
   const [pinging, setPinging] = useState(false);
   const [pingResult, setPingResult] = useState<boolean | null>(null); // null = untested
 
@@ -125,7 +127,27 @@ export default function UploadScreen() {
       setUploading(false);
       xhrRef.current = null;
       if (xhr.status === 200) {
-        setResult({ok: true, message: `"${fileName}" uploaded successfully!`});
+        let message = `"${fileName}" uploaded successfully!`;
+        let hint: string | undefined;
+        try {
+          const body = JSON.parse(xhr.responseText);
+          const savedAs = body.file ?? fileName;
+          const isGif = fileName.toLowerCase().endsWith('.gif');
+          if (isGif && body.converted === true) {
+            // ffmpeg ran — GIF was converted to MP4 for animation
+            message = `"${savedAs}" uploaded (converted GIF → MP4 for animation ✓)`;
+          } else if (isGif && body.converted === false) {
+            // ffmpeg missing — GIF saved as-is, won't animate in VLC
+            message = `"${savedAs}" uploaded, but GIF won't animate`;
+            hint =
+              'ffmpeg is not installed on the Pi.\n' +
+              'Run:  sudo apt install ffmpeg\n' +
+              'Then re-upload the GIF and it will be converted automatically.';
+          } else if (savedAs !== fileName) {
+            message = `"${savedAs}" uploaded successfully!`;
+          }
+        } catch {}
+        setResult({ok: true, message, hint});
         setPickedFile(null);
         setProgress(0);
       } else {
@@ -343,9 +365,14 @@ export default function UploadScreen() {
             {result.ok ? '✓ ' : '✗ '}
             {result.message}
           </Text>
-          {result.ok && (
+          {result.ok && !result.hint && (
             <Text style={styles.resultHint}>
               Go to Browse tab and tap ↻ Refresh to see the new file.
+            </Text>
+          )}
+          {result.hint && (
+            <Text style={[styles.resultHint, styles.resultHintWarning]}>
+              {result.hint}
             </Text>
           )}
         </View>
@@ -525,6 +552,12 @@ const styles = StyleSheet.create({
   resultHint: {
     color: '#9E9E9E',
     fontSize: 12,
+  },
+  resultHintWarning: {
+    color: '#FFA726',
+    fontFamily: 'monospace',
+    fontSize: 11,
+    lineHeight: 18,
   },
   previewSection: {
     backgroundColor: '#1E1E1E',
