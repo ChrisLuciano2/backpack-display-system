@@ -2,14 +2,16 @@
 Description=Backpack Display System (VLC + Bluetooth Server)
 Documentation=https://github.com/ChrisLuciano2/backpack-display-system
 
-# Wait for the Wayland graphical session to be fully up before starting.
-# This ensures the display compositor is ready for VLC video output.
-After=graphical-session.target
-Wants=graphical-session.target
+# default.target always fires at user login on Pi OS (labwc does not
+# activate graphical-session.target, so we use default.target instead).
+After=default.target
 
 [Service]
 Type=simple
 WorkingDirectory=%h/backpack-display-system
+
+# Give the Wayland compositor 10 s to fully initialise before VLC starts.
+ExecStartPre=/bin/sleep 10
 
 # The main process — VLC is backgrounded inside start.sh,
 # Node.js runs in the foreground keeping the service alive.
@@ -27,4 +29,4 @@ StandardOutput=append:%h/backpack.log
 StandardError=append:%h/backpack.log
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=default.target
