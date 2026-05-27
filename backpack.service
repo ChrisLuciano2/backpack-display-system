@@ -1,0 +1,30 @@
+[Unit]
+Description=Backpack Display System (VLC + Bluetooth Server)
+Documentation=https://github.com/ChrisLuciano2/backpack-display-system
+
+# Wait for the Wayland graphical session to be fully up before starting.
+# This ensures the display compositor is ready for VLC video output.
+After=graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/backpack-display-system
+
+# The main process — VLC is backgrounded inside start.sh,
+# Node.js runs in the foreground keeping the service alive.
+ExecStart=/bin/bash %h/backpack-display-system/start.sh
+
+# On crash: wait 10 s then restart.
+# Cap at 3 restarts per 60 s so a broken config doesn't loop forever.
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+# Log everything to ~/backpack.log for easy debugging
+StandardOutput=append:%h/backpack.log
+StandardError=append:%h/backpack.log
+
+[Install]
+WantedBy=graphical-session.target
