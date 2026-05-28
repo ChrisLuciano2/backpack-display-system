@@ -225,10 +225,13 @@ async function dispatch(cmd) {
         } catch {
           // VLC not ready yet — file list still goes through
         }
-        // Send both the legacy flat list and the new grouped lists
+        // Send both the legacy flat list and the new grouped lists.
+        // Include IP so the phone always gets it even if the on-connect
+        // message arrived before the data listener was ready.
         base.files  = [...movies, ...mediaFiles];
         base.movies = movies;
         base.media  = mediaFiles;
+        base.ip     = getLocalIP();
         send(base);
         return;   // skip the generic status send below
       }
