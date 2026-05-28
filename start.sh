@@ -35,15 +35,10 @@ else
 fi
 
 # ── Kiosk cleanup ─────────────────────────────────────────────────────────────
-# wf-panel-pi is kept alive by lwrespawn — kill the respawner first,
-# then kill the panel itself so it can't come back.
-pkill -f lwrespawn  2>/dev/null || true
-pkill wf-panel-pi   2>/dev/null || true
-pkill wf-panel      2>/dev/null || true
-pkill waybar        2>/dev/null || true
-pkill lxpanel       2>/dev/null || true
-pkill swaybg        2>/dev/null || true
-echo "[kiosk] Panel hidden"
+# Kill any previous swaybg so a fresh one starts cleanly.
+# We leave wf-panel-pi running — VLC's fullscreen window covers it.
+pkill swaybg 2>/dev/null || true
+echo "[kiosk] Ready"
 
 
 # Fill the entire screen with solid black so the desktop never shows through
