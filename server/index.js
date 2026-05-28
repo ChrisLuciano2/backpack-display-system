@@ -29,7 +29,29 @@ const vlc   = require('./vlc');
 const media = require('./media');
 const { startUploadServer } = require('./upload');
 const path  = require('path');
+const os    = require('os');
 const { BT_UUID, BT_CHANNEL, STATUS_INTERVAL_MS } = require('./config');
+
+// ── Network helpers ───────────────────────────────────────────────────────────
+
+// Returns the Pi's WiFi (or ethernet) IPv4 address so the phone app can
+// auto-configure the upload URL without the user typing an IP.
+function getLocalIP() {
+  const preferred = ['wlan0', 'wlan1', 'eth0'];
+  const ifaces = os.networkInterfaces();
+  for (const name of preferred) {
+    for (const iface of (ifaces[name] || [])) {
+      if (iface.family === 'IPv4' && !iface.internal) return iface.address;
+    }
+  }
+  // Fallback: first non-loopback IPv4
+  for (const list of Object.values(ifaces)) {
+    for (const iface of list) {
+      if (iface.family === 'IPv4' && !iface.internal) return iface.address;
+    }
+  }
+  return null;
+}
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -272,10 +294,12 @@ function startListening() {
 
       startStatusBroadcast();
 
-      // Send current state immediately so the phone can sync its UI
+      // Send current state + Pi's IP immediately so the phone can sync its
+      // UI and auto-configure the upload URL without manual IP entry.
+      const ip = getLocalIP();
       vlc.buildStatus(false)
-        .then((st) => send(st))
-        .catch(() => send({ status: 'stopped', file: null, pos: 0, duration: 0, volume: 0 }));
+        .then((st) => send({ ...st, ip }))
+        .catch(() => send({ status: 'stopped', file: null, pos: 0, duration: 0, volume: 0, ip }));
     },
 
     // ── Listen error ──────────────────────────────────────────────────────

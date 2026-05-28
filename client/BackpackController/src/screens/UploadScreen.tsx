@@ -38,7 +38,7 @@ function formatBytes(bytes: number): string {
 }
 
 export default function UploadScreen() {
-  const {piIp} = useBluetooth();
+  const {piIp, connected} = useBluetooth();
 
   const [pickedFile, setPickedFile] = useState<DocumentPickerAsset | null>(null);
   const [fitMode, setFitMode] = useState<FitMode>('contain');
@@ -226,7 +226,9 @@ export default function UploadScreen() {
           />
         </View>
         <Text style={styles.cardSub}>
-          {hasIp ? `${piIp}:${UPLOAD_PORT}` : 'No IP set — go to Settings'}
+          {hasIp
+            ? `${piIp}:${UPLOAD_PORT}${connected ? '  (auto)' : ''}`
+            : 'Connect via Bluetooth to auto-detect IP'}
         </Text>
         <TouchableOpacity
           style={[styles.pingBtn, !hasIp && styles.btnDisabled]}

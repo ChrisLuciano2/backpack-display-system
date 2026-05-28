@@ -85,6 +85,9 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
       }
       try {
         const msg = JSON.parse(trimmed);
+        if (typeof msg.ip === 'string' && msg.ip) {
+          setPiIp(msg.ip);
+        }
         if (Array.isArray(msg.files)) {
           setFileList(msg.files);
         }
