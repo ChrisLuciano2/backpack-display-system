@@ -31,6 +31,10 @@ export default function SettingsScreen() {
   } = useBluetooth();
 
   const [ipDraft, setIpDraft] = useState(piIp);
+  // Keep the draft in sync when auto-detect updates piIp over Bluetooth
+  useEffect(() => {
+    setIpDraft(piIp);
+  }, [piIp]);
 
   const [loading, setLoading] = useState(false);
 
@@ -188,7 +192,9 @@ export default function SettingsScreen() {
       <View style={styles.ipCard}>
         <Text style={styles.ipLabel}>Pi IP Address</Text>
         <Text style={styles.ipHint}>
-          Run <Text style={styles.ipCode}>hostname -I</Text> on the Pi to find it
+          {connected
+            ? 'Auto-detected via Bluetooth — or override manually below'
+            : 'Connect via Bluetooth to auto-detect, or enter manually'}
         </Text>
         <View style={styles.ipRow}>
           <TextInput
