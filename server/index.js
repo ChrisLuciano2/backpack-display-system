@@ -297,12 +297,18 @@ function startListening() {
 
       startStatusBroadcast();
 
-      // Send current state + Pi's IP immediately so the phone can sync its
-      // UI and auto-configure the upload URL without manual IP entry.
-      const ip = getLocalIP();
+      // Send current VLC state immediately so the phone UI syncs.
       vlc.buildStatus(false)
-        .then((st) => send({ ...st, ip }))
-        .catch(() => send({ status: 'stopped', file: null, pos: 0, duration: 0, volume: 0, ip }));
+        .then((st) => send(st))
+        .catch(() => send({ status: 'stopped', file: null, pos: 0, duration: 0, volume: 0 }));
+
+      // Send IP as a dedicated message after 1 s — the phone's data listener
+      // may not be registered yet at the moment of connection, so we delay
+      // to guarantee delivery.
+      setTimeout(() => {
+        const ip = getLocalIP();
+        if (ip) send({ ip });
+      }, 1000);
     },
 
     // ── Listen error ──────────────────────────────────────────────────────
