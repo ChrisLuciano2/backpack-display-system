@@ -96,6 +96,7 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+            manifestPlaceholders = [usesCleartextTraffic: "true"]
         }
         release {
             // Caution! In production, you need to generate your own keystore file.
@@ -103,6 +104,11 @@ android {
             signingConfig signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            // The Pi has no TLS cert (plain HTTP on the local network), so the
+            // Upload/Ping features need cleartext allowed even in release builds.
+            // RNGP defaults this to "false" for release, which would silently
+            // break every fetch()/XHR call to http://{piIp}:3001.
+            manifestPlaceholders = [usesCleartextTraffic: "true"]
         }
     }
 }
