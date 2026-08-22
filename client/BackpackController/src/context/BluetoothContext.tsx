@@ -37,6 +37,7 @@ const DEFAULT_STATUS: PiStatus = {
   pos: 0,
   duration: 0,
   volume: 75,
+  screen: 'on',
 };
 
 const BluetoothContext = createContext<BluetoothContextValue | null>(null);
@@ -97,14 +98,18 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
         if (Array.isArray(msg.media)) {
           setMediaList(msg.media);
         }
+        if (typeof msg.error === 'string' && msg.error) {
+          setError(msg.error);
+        }
         if (msg.status) {
-          setPiStatus({
+          setPiStatus(prev => ({
             status: msg.status,
             file: msg.file ?? null,
             pos: msg.pos ?? 0,
             duration: msg.duration ?? 0,
             volume: msg.volume ?? 75,
-          });
+            screen: msg.screen ?? prev.screen,
+          }));
         }
       } catch {
         // ignore malformed JSON

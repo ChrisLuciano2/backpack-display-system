@@ -16,9 +16,10 @@
 //   { "action": "volume", "level": 75 }       // 0-100
 //   { "action": "seek",   "seconds": 120 }
 //   { "action": "list"   }
+//   { "action": "screen", "state": "sleep" | "wake" }
 //
 // Pi → Phone (status):
-//   { "status": "playing", "file": "video.mp4", "pos": 42, "duration": 3600, "volume": 75 }
+//   { "status": "playing", "file": "video.mp4", "pos": 42, "duration": 3600, "volume": 75, "screen": "on" }
 //   { "files": ["a.mp4", "b.mp4"] }           // response to "list"
 //   { "error": "File not found: ..." }
 
@@ -59,6 +60,18 @@ let server         = null;   // BluetoothSerialPortServer instance (recreated on
 let connected      = false;  // Whether a phone client is currently connected
 let receiveBuffer  = '';     // Incomplete JSON line accumulator
 let statusTimer    = null;   // Periodic status broadcast interval
+let screenOff      = false;  // Whether the monitor has been put to sleep via the "screen" command
+
+const HDMI_OUTPUT = 'HDMI-A-1';
+
+// Build the standard status payload plus the current screen power state.
+// screenOff is server-side state (not something VLC knows about), so every
+// status send needs to merge it in separately from vlc.buildStatus().
+async function statusWithScreen() {
+  const st = await vlc.buildStatus(false);
+  st.screen = screenOff ? 'off' : 'on';
+  return st;
+}
 
 // ── Outbound: Send JSON to phone ──────────────────────────────────────────────
 
@@ -77,7 +90,7 @@ function startStatusBroadcast() {
   statusTimer = setInterval(async () => {
     if (!connected) return;
     try {
-      const st = await vlc.buildStatus(false);
+      const st = await statusWithScreen();
       // Only push unsolicited updates while something is actively playing
       if (st.status === 'playing') {
         send(st);
@@ -183,9 +196,44 @@ async function dispatch(cmd) {
         }
         const transform = angle === 0 ? 'normal' : String(angle);
         const { execSync } = require('child_process');
-        execSync(`wlr-randr --output HDMI-A-1 --transform ${transform}`);
+        execSync(`wlr-randr --output ${HDMI_OUTPUT} --transform ${transform}`);
         send({ rotated: angle });
         return;
+      }
+
+      // ── Screen power ─────────────────────────────────────────────────────
+      // "sleep": pause playback (VLC holds the exact position) and power off
+      // the HDMI output so the monitor itself goes dark/standby.
+      // "wake": power the HDMI output back on and resume from that exact
+      // position — no manual pos/file bookkeeping needed since VLC's own
+      // pause state already preserves it.
+      case 'screen': {
+        const state = cmd.state;
+        if (!['sleep', 'wake'].includes(state)) {
+          send({ error: 'screen requires state: sleep or wake' });
+          return;
+        }
+        const { execSync } = require('child_process');
+        try {
+          if (state === 'sleep') {
+            await vlc.pause();
+            execSync(`wlr-randr --output ${HDMI_OUTPUT} --off`);
+            screenOff = true;
+          } else {
+            // Re-force 1920x1080 on wake — the display can forget its forced
+            // mode across a power cycle and fall back to native 2256x1504.
+            execSync(`wlr-randr --output ${HDMI_OUTPUT} --on --mode 1920x1080`);
+            screenOff = false;
+            // Give the panel a moment to reinitialize before resuming
+            await new Promise((r) => setTimeout(r, 500));
+            await vlc.resume();
+          }
+        } catch (err) {
+          console.error('[screen] Command failed:', err.message);
+          send({ error: 'Screen power command failed: ' + err.message });
+          return;
+        }
+        break;
       }
 
       // ── Queue management ─────────────────────────────────────────────────
@@ -211,7 +259,7 @@ async function dispatch(cmd) {
       case 'clearqueue': {
         await vlc.clearPlaylist();
         await new Promise((r) => setTimeout(r, 150));
-        const st = await vlc.buildStatus(false);
+        const st = await statusWithScreen();
         send(st);
         return;
       }
@@ -219,9 +267,9 @@ async function dispatch(cmd) {
       // ── File list ─────────────────────────────────────────────────────────
       case 'list': {
         const { movies, media: mediaFiles } = media.listFilesGrouped();
-        let base = { status: 'stopped', file: null, pos: 0, duration: 0, volume: 75 };
+        let base = { status: 'stopped', file: null, pos: 0, duration: 0, volume: 75, screen: screenOff ? 'off' : 'on' };
         try {
-          base = await vlc.buildStatus(false);
+          base = await statusWithScreen();
         } catch {
           // VLC not ready yet — file list still goes through
         }
@@ -244,7 +292,7 @@ async function dispatch(cmd) {
     // After every command except 'list', send back current VLC state
     // Give VLC a brief moment to update before reading status back
     await new Promise((r) => setTimeout(r, 150));
-    const st = await vlc.buildStatus(false);
+    const st = await statusWithScreen();
     send(st);
 
   } catch (err) {
@@ -298,9 +346,9 @@ function startListening() {
       startStatusBroadcast();
 
       // Send current VLC state immediately so the phone UI syncs.
-      vlc.buildStatus(false)
+      statusWithScreen()
         .then((st) => send(st))
-        .catch(() => send({ status: 'stopped', file: null, pos: 0, duration: 0, volume: 0 }));
+        .catch(() => send({ status: 'stopped', file: null, pos: 0, duration: 0, volume: 0, screen: screenOff ? 'off' : 'on' }));
 
       // Send IP as a dedicated message after 1 s — the phone's data listener
       // may not be registered yet at the moment of connection, so we delay

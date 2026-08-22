@@ -23,9 +23,10 @@ const DISPLAY_MODES: {mode: DisplayMode; label: string; hint: string}[] = [
 ];
 
 export default function NowPlayingScreen() {
-  const {connected, piStatus, sendCommand} = useBluetooth();
-  const {status, file, pos, duration, volume} = piStatus;
+  const {connected, piStatus, sendCommand, error} = useBluetooth();
+  const {status, file, pos, duration, volume, screen} = piStatus;
   const isPlaying = status === 'playing';
+  const screenOn = screen !== 'off';
   const hasMedia = status === 'playing' || status === 'paused';
   const progress = duration > 0 ? pos / duration : 0;
   const [displayMode, setDisplayMode] = useState<DisplayMode>('contain');
@@ -70,6 +71,10 @@ export default function NowPlayingScreen() {
     [sendCommand],
   );
 
+  const onToggleScreen = useCallback(() => {
+    sendCommand({action: 'screen', state: screenOn ? 'sleep' : 'wake'});
+  }, [screenOn, sendCommand]);
+
   const onDisplayMode = useCallback(
     (mode: DisplayMode) => {
       setDisplayMode(mode);
@@ -84,16 +89,40 @@ export default function NowPlayingScreen() {
     <View style={styles.container}>
       {/* Status bar */}
       <View style={styles.statusRow}>
-        <View
-          style={[
-            styles.statusDot,
-            {backgroundColor: connected ? '#4CAF50' : '#F44336'},
-          ]}
-        />
-        <Text style={styles.statusText}>
-          {connected ? 'Connected' : 'Not Connected'}
-        </Text>
+        <TouchableOpacity
+          style={[styles.screenToggleBtn, !connected && styles.disabledBtn]}
+          onPress={onToggleScreen}
+          disabled={!connected}>
+          <Text style={styles.screenToggleIcon}>{screenOn ? '🌙' : '☀️'}</Text>
+          <Text style={styles.screenToggleText}>
+            {screenOn ? 'Sleep' : 'Wake'}
+          </Text>
+        </TouchableOpacity>
+
+        <View style={styles.connectionIndicator}>
+          <View
+            style={[
+              styles.statusDot,
+              {backgroundColor: connected ? '#4CAF50' : '#F44336'},
+            ]}
+          />
+          <Text style={styles.statusText}>
+            {connected ? 'Connected' : 'Not Connected'}
+          </Text>
+        </View>
       </View>
+
+      {!screenOn && (
+        <Text style={styles.screenOffHint}>
+          Screen is off — tap ☀️ Wake to resume where you left off
+        </Text>
+      )}
+
+      {error && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>⚠ {error}</Text>
+        </View>
+      )}
 
       {/* Artwork placeholder */}
       <View style={styles.artwork}>
@@ -239,8 +268,30 @@ const styles = StyleSheet.create({
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-end',
+    justifyContent: 'space-between',
+    width: '100%',
     marginBottom: 16,
+  },
+  screenToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E1E1E',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  screenToggleIcon: {
+    fontSize: 15,
+    marginRight: 5,
+  },
+  screenToggleText: {
+    color: '#9E9E9E',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  connectionIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   statusDot: {
     width: 10,
@@ -250,6 +301,26 @@ const styles = StyleSheet.create({
   },
   statusText: {
     color: '#9E9E9E',
+    fontSize: 13,
+  },
+  screenOffHint: {
+    color: '#616161',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: -8,
+    marginBottom: 16,
+  },
+  errorBanner: {
+    backgroundColor: '#2a1010',
+    width: '100%',
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#F44336',
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#F44336',
     fontSize: 13,
   },
   artwork: {
