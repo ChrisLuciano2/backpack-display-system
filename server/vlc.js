@@ -96,6 +96,12 @@ module.exports = {
   // to loop GIFs continuously.
   async playFile(absolutePath, isImage = false) {
     const uri = 'file://' + absolutePath;
+    // Force a full stop before switching. Replacing the current item via
+    // in_play alone leaves audio working but the video output surface
+    // doesn't reliably reinitialize (a known VLC/Wayland vout issue) — a
+    // clean stop first makes VLC actually tear down and recreate it.
+    await vlcGet({ command: 'pl_stop' });
+    await new Promise((r) => setTimeout(r, 200));
     if (isImage) {
       // image-duration=-1 : display forever until stopped
       // input-repeat=65535: loop GIF animation continuously
