@@ -23,8 +23,13 @@ const STATUS_PATH  = '/requests/status.json';
 
 function vlcGet(params = {}) {
   return new Promise((resolve, reject) => {
-    const qs = Object.keys(params).length
-      ? '?' + new URLSearchParams(params).toString()
+    // Not URLSearchParams: it encodes spaces as '+' (form-encoding
+    // convention), which VLC's own URL parser does not decode back to a
+    // space — file paths with spaces would silently fail to open.
+    // encodeURIComponent uses %20, which VLC handles correctly.
+    const entries = Object.entries(params);
+    const qs = entries.length
+      ? '?' + entries.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&')
       : '';
 
     const options = {
