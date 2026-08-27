@@ -65,6 +65,28 @@ function toVlcVol(pct) { return Math.round(clamp(pct, 0, 100) * 2.56); }
 // Convert VLC 0-512 → protocol 0-100
 function fromVlcVol(vlcVol) { return Math.round(clamp(vlcVol, 0, 512) / 2.56); }
 
+// Poll VLC's raw status until it actually reports "stopped" instead of
+// blindly waiting a fixed delay. Switching items while VLC hasn't finished
+// tearing down the previous video output is what leaves audio playing with
+// no picture — a fixed delay is a race, this waits for the real signal.
+async function waitForStopped(maxWaitMs = 2000, pollIntervalMs = 50) {
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    const s = await vlcGet();
+    if (s.state === 'stopped' || !s.state) return true;
+    await new Promise((r) => setTimeout(r, pollIntervalMs));
+  }
+  return false; // gave up — caller proceeds anyway rather than hanging forever
+}
+
+// Stop playback and wait for VLC to confirm it before returning. Used before
+// every item switch (play/next/prev) so the video output gets torn down and
+// recreated cleanly instead of racing the new item's startup.
+async function stopAndWait() {
+  await vlcGet({ command: 'pl_stop' });
+  await waitForStopped();
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -96,12 +118,7 @@ module.exports = {
   // to loop GIFs continuously.
   async playFile(absolutePath, isImage = false) {
     const uri = 'file://' + absolutePath;
-    // Force a full stop before switching. Replacing the current item via
-    // in_play alone leaves audio working but the video output surface
-    // doesn't reliably reinitialize (a known VLC/Wayland vout issue) — a
-    // clean stop first makes VLC actually tear down and recreate it.
-    await vlcGet({ command: 'pl_stop' });
-    await new Promise((r) => setTimeout(r, 200));
+    await stopAndWait();
     if (isImage) {
       // image-duration=-1 : display forever until stopped
       // input-repeat=65535: loop GIF animation continuously
@@ -131,11 +148,13 @@ module.exports = {
 
   // Skip to next item in VLC playlist
   async next() {
+    await stopAndWait();
     return vlcGet({ command: 'pl_next' });
   },
 
   // Go back to previous item in VLC playlist
   async prev() {
+    await stopAndWait();
     return vlcGet({ command: 'pl_previous' });
   },
 
