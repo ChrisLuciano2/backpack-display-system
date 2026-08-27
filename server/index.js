@@ -17,11 +17,22 @@
 //   { "action": "seek",   "seconds": 120 }
 //   { "action": "list"   }
 //   { "action": "screen", "state": "sleep" | "wake" }
+//   { "action": "enqueue",      "file": "video.mp4" }
+//   { "action": "clearqueue"  }
+//   { "action": "queueremove", "index": 2 }
+//   { "action": "queuereorder", "fromIndex": 2, "toIndex": 0 }
+//   { "action": "queuejump",   "index": 2 }
 //
 // Pi → Phone (status):
-//   { "status": "playing", "file": "video.mp4", "pos": 42, "duration": 3600, "volume": 75, "screen": "on" }
+//   { "status": "playing", "file": "video.mp4", "pos": 42, "duration": 3600, "volume": 75, "screen": "on", "queue": ["b.mp4","c.mp4"] }
 //   { "files": ["a.mp4", "b.mp4"] }           // response to "list"
 //   { "error": "File not found: ..." }
+//
+// The queue ("up next") is tracked entirely server-side — VLC only ever
+// plays one file at a time via in_play. This lets next/prev/auto-advance
+// all go through the same safe stop-then-play path (see vlc.js) instead of
+// VLC's own playlist navigation, which was the source of the video-not-
+// appearing bug when switching between items.
 
 'use strict';
 
@@ -60,16 +71,84 @@ let server         = null;   // BluetoothSerialPortServer instance (recreated on
 let connected      = false;  // Whether a phone client is currently connected
 let receiveBuffer  = '';     // Incomplete JSON line accumulator
 let statusTimer    = null;   // Periodic status broadcast interval
+let queueTimer     = null;   // Queue-advance watcher interval
 let screenOff      = false;  // Whether the monitor has been put to sleep via the "screen" command
 
-const HDMI_OUTPUT = 'HDMI-A-1';
+// ── Server-managed queue ─────────────────────────────────────────────────────
+// VLC only ever plays one file at a time (via vlc.playFile's safe stop+play).
+// The queue itself — what's playing, what's next, what came before — lives
+// here, not in VLC's own playlist, so every transition (tap-to-play,
+// next/prev, natural end-of-clip) goes through the same reliable path.
+let nowPlaying   = null;   // filename currently playing, or null
+let upNext       = [];     // ordered filenames queued after nowPlaying
+let history      = [];     // filenames played before nowPlaying, for "prev"
+let userStopped  = false;  // true after an explicit stop — blocks auto-advance
+let queueBusy    = false;  // reentrancy guard around advanceQueue()
 
-// Build the standard status payload plus the current screen power state.
-// screenOff is server-side state (not something VLC knows about), so every
-// status send needs to merge it in separately from vlc.buildStatus().
-async function statusWithScreen() {
+const HDMI_OUTPUT = 'HDMI-A-1';
+const QUEUE_POLL_MS = 500; // how often to check for natural end-of-clip
+
+// Play a queued/selected file, tracking playback errors from a vanished file.
+// Returns true on success, false if the file no longer exists on disk.
+async function playQueuedFile(filename) {
+  const fullPath = media.resolveFile(filename);
+  if (!fullPath) return false;
+  await vlc.playFile(fullPath, media.isImageFile(filename));
+  return true;
+}
+
+// Advance to the next queued item after the current one ends naturally.
+// Skips over any queued file that's vanished from disk since being queued.
+async function advanceQueue() {
+  if (nowPlaying) history.push(nowPlaying);
+  nowPlaying = null;
+  while (upNext.length > 0) {
+    const next = upNext.shift();
+    const ok = await playQueuedFile(next);
+    if (ok) {
+      nowPlaying = next;
+      return;
+    }
+    console.warn('[queue] Skipping missing file:', next);
+  }
+}
+
+// Polls VLC for natural end-of-clip (state becomes stopped without the user
+// having explicitly stopped it) and auto-advances the queue when it happens.
+function startQueueWatcher() {
+  if (queueTimer) return;
+  queueTimer = setInterval(async () => {
+    if (!connected || !nowPlaying || userStopped || queueBusy) return;
+    queueBusy = true;
+    try {
+      const raw = await vlc.rawStatus();
+      if (raw.state === 'stopped' || !raw.state) {
+        await advanceQueue();
+        const st = await buildFullStatus();
+        send(st);
+      }
+    } catch {
+      // VLC momentarily unreachable — try again next tick
+    } finally {
+      queueBusy = false;
+    }
+  }, QUEUE_POLL_MS);
+}
+
+function stopQueueWatcher() {
+  if (queueTimer) {
+    clearInterval(queueTimer);
+    queueTimer = null;
+  }
+}
+
+// Build the standard status payload plus screen power state and the queue.
+// screenOff/queue are server-side state (not something VLC knows about), so
+// every status send needs to merge them in separately from vlc.buildStatus().
+async function buildFullStatus() {
   const st = await vlc.buildStatus(false);
   st.screen = screenOff ? 'off' : 'on';
+  st.queue = upNext.slice();
   return st;
 }
 
@@ -90,7 +169,7 @@ function startStatusBroadcast() {
   statusTimer = setInterval(async () => {
     if (!connected) return;
     try {
-      const st = await statusWithScreen();
+      const st = await buildFullStatus();
       // Only push unsolicited updates while something is actively playing
       if (st.status === 'playing') {
         send(st);
@@ -118,16 +197,22 @@ async function dispatch(cmd) {
     switch (action) {
 
       // ── Playback control ─────────────────────────────────────────────────
+      // Play/next/prev never touch upNext directly here — advanceQueue()
+      // and the cases below own all queue mutation so state stays consistent.
       case 'play': {
         if (cmd.file) {
-          const fullPath = media.resolveFile(cmd.file);
-          if (!fullPath) {
+          const ok = await playQueuedFile(cmd.file);
+          if (!ok) {
             send({ error: 'File not found: ' + cmd.file });
             return;
           }
-          await vlc.playFile(fullPath, media.isImageFile(cmd.file));
+          // Interrupts with a direct pick — doesn't touch upNext, so a
+          // queue that was running resumes after this one ends.
+          nowPlaying = cmd.file;
+          userStopped = false;
         } else {
           // Resume current item without specifying a file
+          userStopped = false;
           await vlc.resume();
         }
         break;
@@ -138,20 +223,43 @@ async function dispatch(cmd) {
         break;
 
       case 'resume':
+        userStopped = false;
         await vlc.resume();
         break;
 
       case 'stop':
+        userStopped = true;
+        nowPlaying = null;
         await vlc.stop();
         break;
 
-      case 'next':
-        await vlc.next();
+      case 'next': {
+        if (upNext.length === 0) break; // nothing queued — no-op
+        if (nowPlaying) history.push(nowPlaying);
+        const next = upNext.shift();
+        const ok = await playQueuedFile(next);
+        if (!ok) {
+          send({ error: 'Queued file not found: ' + next });
+          return;
+        }
+        nowPlaying = next;
+        userStopped = false;
         break;
+      }
 
-      case 'prev':
-        await vlc.prev();
+      case 'prev': {
+        if (history.length === 0) break; // nothing to go back to — no-op
+        if (nowPlaying) upNext.unshift(nowPlaying);
+        const prevFile = history.pop();
+        const ok = await playQueuedFile(prevFile);
+        if (!ok) {
+          send({ error: 'File not found: ' + prevFile });
+          return;
+        }
+        nowPlaying = prevFile;
+        userStopped = false;
         break;
+      }
 
       // ── Volume ────────────────────────────────────────────────────────────
       case 'volume': {
@@ -237,39 +345,97 @@ async function dispatch(cmd) {
       }
 
       // ── Queue management ─────────────────────────────────────────────────
-      // enqueue: add a file to the end of VLC's playlist without interrupting
-      // whatever is currently playing.  VLC auto-advances when the current
-      // item ends so the user never has to open the app again.
+      // enqueue: append a file to the server-side upNext list. If nothing
+      // is currently playing, starts the queue immediately instead of
+      // sitting there with nothing to trigger it.
       case 'enqueue': {
         if (!cmd.file) {
           send({ error: 'enqueue requires a "file" field' });
           return;
         }
-        const fullPath = media.resolveFile(cmd.file);
-        if (!fullPath) {
+        if (!media.resolveFile(cmd.file)) {
           send({ error: 'File not found: ' + cmd.file });
           return;
         }
-        await vlc.enqueueFile(fullPath, media.isImageFile(cmd.file));
+        upNext.push(cmd.file);
         send({ queued: cmd.file });
-        return;   // no generic status send — just confirm the enqueue
-      }
-
-      // clearqueue: empty the VLC playlist (stops playback)
-      case 'clearqueue': {
-        await vlc.clearPlaylist();
-        await new Promise((r) => setTimeout(r, 150));
-        const st = await statusWithScreen();
+        if (!nowPlaying) {
+          userStopped = false;
+          await advanceQueue();
+        }
+        const st = await buildFullStatus();
         send(st);
         return;
+      }
+
+      // clearqueue: empty just the upNext list — does not stop whatever is
+      // currently playing.
+      case 'clearqueue': {
+        upNext = [];
+        const st = await buildFullStatus();
+        send(st);
+        return;
+      }
+
+      // queueremove: drop a single item out of upNext by its index.
+      case 'queueremove': {
+        const index = Number(cmd.index);
+        if (!Number.isInteger(index) || index < 0 || index >= upNext.length) {
+          send({ error: 'queueremove requires a valid "index"' });
+          return;
+        }
+        upNext.splice(index, 1);
+        const st = await buildFullStatus();
+        send(st);
+        return;
+      }
+
+      // queuereorder: move an upNext item from one position to another.
+      case 'queuereorder': {
+        const fromIndex = Number(cmd.fromIndex);
+        const toIndex = Number(cmd.toIndex);
+        if (
+          !Number.isInteger(fromIndex) || !Number.isInteger(toIndex) ||
+          fromIndex < 0 || fromIndex >= upNext.length ||
+          toIndex < 0 || toIndex >= upNext.length
+        ) {
+          send({ error: 'queuereorder requires valid "fromIndex"/"toIndex"' });
+          return;
+        }
+        const [item] = upNext.splice(fromIndex, 1);
+        upNext.splice(toIndex, 0, item);
+        const st = await buildFullStatus();
+        send(st);
+        return;
+      }
+
+      // queuejump: skip straight to an upNext item. Everything before it is
+      // dropped (skipped, not "played"); the current item goes to history.
+      case 'queuejump': {
+        const index = Number(cmd.index);
+        if (!Number.isInteger(index) || index < 0 || index >= upNext.length) {
+          send({ error: 'queuejump requires a valid "index"' });
+          return;
+        }
+        const target = upNext[index];
+        const ok = await playQueuedFile(target);
+        if (!ok) {
+          send({ error: 'File not found: ' + target });
+          return;
+        }
+        if (nowPlaying) history.push(nowPlaying);
+        upNext = upNext.slice(index + 1);
+        nowPlaying = target;
+        userStopped = false;
+        break;
       }
 
       // ── File list ─────────────────────────────────────────────────────────
       case 'list': {
         const { movies, media: mediaFiles } = media.listFilesGrouped();
-        let base = { status: 'stopped', file: null, pos: 0, duration: 0, volume: 75, screen: screenOff ? 'off' : 'on' };
+        let base = { status: 'stopped', file: null, pos: 0, duration: 0, volume: 75, screen: screenOff ? 'off' : 'on', queue: upNext.slice() };
         try {
-          base = await statusWithScreen();
+          base = await buildFullStatus();
         } catch {
           // VLC not ready yet — file list still goes through
         }
@@ -292,7 +458,7 @@ async function dispatch(cmd) {
     // After every command except 'list', send back current VLC state
     // Give VLC a brief moment to update before reading status back
     await new Promise((r) => setTimeout(r, 150));
-    const st = await statusWithScreen();
+    const st = await buildFullStatus();
     send(st);
 
   } catch (err) {
@@ -339,16 +505,18 @@ function startListening() {
         console.log('[bt] Phone disconnected');
         connected = false;
         stopStatusBroadcast();
+        stopQueueWatcher();
         // Recreate server instance and wait for next connection
         setTimeout(startListening, 1000);
       });
 
       startStatusBroadcast();
+      startQueueWatcher();
 
       // Send current VLC state immediately so the phone UI syncs.
-      statusWithScreen()
+      buildFullStatus()
         .then((st) => send(st))
-        .catch(() => send({ status: 'stopped', file: null, pos: 0, duration: 0, volume: 0, screen: screenOff ? 'off' : 'on' }));
+        .catch(() => send({ status: 'stopped', file: null, pos: 0, duration: 0, volume: 0, screen: screenOff ? 'off' : 'on', queue: upNext.slice() }));
 
       // Send IP as a dedicated message after 1 s — the phone's data listener
       // may not be registered yet at the moment of connection, so we delay

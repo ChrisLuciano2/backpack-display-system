@@ -9,6 +9,7 @@ export interface PiStatus {
   duration: number;
   volume: number;
   screen: ScreenState;
+  queue: string[];
 }
 
 export type PiCommand =
@@ -25,4 +26,7 @@ export type PiCommand =
   | { action: 'displaymode'; mode: 'contain' | 'cover' | 'stretch'; ratio: '16:9' | '9:16' }
   | { action: 'enqueue'; file: string }
   | { action: 'clearqueue' }
-  | { action: 'screen'; state: 'sleep' | 'wake' };
+  | { action: 'screen'; state: 'sleep' | 'wake' }
+  | { action: 'queueremove'; index: number }
+  | { action: 'queuereorder'; fromIndex: number; toIndex: number }
+  | { action: 'queuejump'; index: number };

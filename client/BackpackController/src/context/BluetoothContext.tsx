@@ -38,6 +38,7 @@ const DEFAULT_STATUS: PiStatus = {
   duration: 0,
   volume: 75,
   screen: 'on',
+  queue: [],
 };
 
 const BluetoothContext = createContext<BluetoothContextValue | null>(null);
@@ -109,6 +110,7 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
             duration: msg.duration ?? 0,
             volume: msg.volume ?? 75,
             screen: msg.screen ?? prev.screen,
+            queue: Array.isArray(msg.queue) ? msg.queue : prev.queue,
           }));
         }
       } catch {

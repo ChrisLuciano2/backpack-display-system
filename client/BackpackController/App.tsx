@@ -6,6 +6,7 @@ import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {BluetoothProvider, useBluetooth} from './src/context/BluetoothContext';
 import BrowseFilesScreen from './src/screens/BrowseFilesScreen';
 import NowPlayingScreen from './src/screens/NowPlayingScreen';
+import QueueScreen from './src/screens/QueueScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import UploadScreen from './src/screens/UploadScreen';
 
@@ -16,7 +17,8 @@ function TabIcon({label, emoji}: {label: string; emoji: string}) {
 }
 
 function AppTabs() {
-  const {connected} = useBluetooth();
+  const {connected, piStatus} = useBluetooth();
+  const queueCount = piStatus.queue.length;
 
   return (
     <Tab.Navigator
@@ -42,6 +44,15 @@ function AppTabs() {
         options={{
           tabBarIcon: () => <TabIcon label="Browse" emoji="🎬" />,
           tabBarLabel: 'Browse',
+        }}
+      />
+      <Tab.Screen
+        name="Queue"
+        component={QueueScreen}
+        options={{
+          tabBarIcon: () => <TabIcon label="Queue" emoji="📋" />,
+          tabBarLabel: 'Queue',
+          tabBarBadge: queueCount > 0 ? queueCount : undefined,
         }}
       />
       <Tab.Screen
