@@ -1,0 +1,4 @@
+#!/bin/bash
+# Fake wlr-randr: there is no HDMI screen in the simulation. Logs the call and succeeds.
+echo "[fake wlr-randr] $*" >> /tmp/wlr-randr.log
+exit 0

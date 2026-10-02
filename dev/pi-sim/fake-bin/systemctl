@@ -1,0 +1,53 @@
+#!/bin/bash
+# Fake `systemctl --user` for the virtual Pi (there is no systemd in a container).
+# Supports: start, stop, restart, is-active for video-mode and game-mode.
+# Behaves like the real units: starting one stops the other (Conflicts=).
+
+DIR=/tmp/units
+mkdir -p "$DIR"
+
+[ "$1" = "--user" ] && shift
+CMD="$1"
+UNIT="${2%.service}"
+
+command_for() {
+  case "$1" in
+    video-mode) echo /app/scripts/run-vlc.sh ;;
+    game-mode)  echo /app/scripts/run-retroarch.sh ;;
+    *) return 1 ;;
+  esac
+}
+conflict_of() {
+  case "$1" in
+    video-mode) echo game-mode ;;
+    game-mode)  echo video-mode ;;
+  esac
+}
+alive() { [ -f "$DIR/$1.pid" ] && kill -0 "$(cat "$DIR/$1.pid")" 2>/dev/null; }
+
+stop_unit() {
+  if alive "$1"; then
+    pid="$(cat "$DIR/$1.pid")"
+    kill "$pid" 2>/dev/null
+    for _ in $(seq 1 40); do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
+    kill -9 "$pid" 2>/dev/null
+  fi
+  rm -f "$DIR/$1.pid"
+}
+
+start_unit() {
+  script="$(command_for "$1")" || { echo "Unit $1.service not found." >&2; exit 5; }
+  other="$(conflict_of "$1")"
+  [ -n "$other" ] && stop_unit "$other"
+  alive "$1" && return 0
+  nohup bash "$script" >"/tmp/$1.log" 2>&1 &
+  echo $! > "$DIR/$1.pid"
+}
+
+case "$CMD" in
+  start)     command_for "$UNIT" >/dev/null || { echo "Unit $UNIT.service not found." >&2; exit 5; }; start_unit "$UNIT" ;;
+  stop)      stop_unit "$UNIT" ;;
+  restart)   stop_unit "$UNIT"; start_unit "$UNIT" ;;
+  is-active) if alive "$UNIT"; then echo active; exit 0; else echo inactive; exit 3; fi ;;
+  *)         echo "fake systemctl: unsupported command: $CMD" >&2; exit 1 ;;
+esac

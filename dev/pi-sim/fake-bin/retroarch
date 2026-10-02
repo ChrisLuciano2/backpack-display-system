@@ -1,0 +1,3 @@
+#!/bin/bash
+# Stand-in for the retroarch program in the virtual Pi.
+exec node /opt/sim/retroarch-sim.js "$@"
