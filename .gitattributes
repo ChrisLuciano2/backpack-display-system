@@ -1,0 +1,4 @@
+*.sh text eol=lf
+systemctl text eol=lf
+retroarch text eol=lf
+wlr-randr text eol=lf
