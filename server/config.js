@@ -31,4 +31,16 @@ module.exports = {
   // ── Upload HTTP server ─────────────────────────────────────────────────────
   // Phone uploads files to Pi over WiFi on this port
   UPLOAD_PORT: process.env.UPLOAD_PORT || 3001,
+
+  // ── Game Mode ──────────────────────────────────────────────────────────────
+  // Where games, cores, BIOS files and save states live, and where the server
+  // leaves its own small state files (launch.env, queue.json).
+  ROMS_DIR: process.env.ROMS_DIR || `/home/${process.env.USER || 'chrisl'}/roms`,
+  CORES_DIR: process.env.CORES_DIR || `/home/${process.env.USER || 'chrisl'}/cores`,
+  BIOS_DIR: process.env.BIOS_DIR || `/home/${process.env.USER || 'chrisl'}/bios`,
+  STATES_DIR: process.env.STATES_DIR || `/home/${process.env.USER || 'chrisl'}/states`,
+  STATE_DIR: process.env.BACKPACK_STATE_DIR || `/home/${process.env.USER || 'chrisl'}/.local/state/backpack`,
+
+  // RetroArch network command port (network_cmd_enable, verify in Phase 0).
+  RETROARCH_UDP_PORT: Number(process.env.RETROARCH_UDP_PORT || 55355),
 };

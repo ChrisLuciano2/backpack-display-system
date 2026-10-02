@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server/index.js",
     "start:full": "bash start.sh",
+    "test": "node --test",
     "setup": "npm install --ignore-scripts && node scripts/patch-bt.js"
   },
   "engines": {

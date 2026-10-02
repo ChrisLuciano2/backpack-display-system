@@ -1,0 +1,53 @@
+{
+  "_note": "Cores, extensions and BIOS names are candidates from general knowledge. Phase 0 (STG452-43) confirms each core and license. A system is only shown as verified after the hardware test matrix passes (PRD section 6).",
+  "nes": {
+    "name": "NES",
+    "media": "cartridge",
+    "dirs": ["nes", "famicom"],
+    "extensions": [".nes", ".fds", ".unf", ".zip", ".7z"],
+    "core": "nestopia_libretro.so",
+    "biosRequired": false,
+    "bios": [],
+    "verified": false
+  },
+  "snes": {
+    "name": "SNES",
+    "media": "cartridge",
+    "dirs": ["snes", "sfc"],
+    "extensions": [".sfc", ".smc", ".swc", ".fig", ".zip", ".7z"],
+    "core": "snes9x_libretro.so",
+    "biosRequired": false,
+    "bios": [],
+    "verified": false
+  },
+  "genesis": {
+    "name": "Genesis",
+    "media": "cartridge",
+    "dirs": ["genesis", "megadrive", "md"],
+    "extensions": [".md", ".gen", ".smd", ".bin", ".zip", ".7z"],
+    "core": "genesis_plus_gx_libretro.so",
+    "biosRequired": false,
+    "bios": [],
+    "verified": false
+  },
+  "gba": {
+    "name": "GB / GBA",
+    "media": "handheld",
+    "dirs": ["gba", "gb", "gbc"],
+    "extensions": [".gba", ".gb", ".gbc", ".zip", ".7z"],
+    "core": "mgba_libretro.so",
+    "biosRequired": false,
+    "bios": [],
+    "verified": false
+  },
+  "ps1": {
+    "name": "PS1",
+    "media": "disc",
+    "dirs": ["ps1", "psx"],
+    "extensions": [".cue", ".chd", ".pbp", ".m3u"],
+    "core": "pcsx_rearmed_libretro.so",
+    "biosRequired": true,
+    "bios": ["scph5501.bin", "scph5500.bin", "scph5502.bin"],
+    "verified": false
+  }
+}
