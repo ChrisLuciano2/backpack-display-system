@@ -33,12 +33,9 @@ if [ -f "$ENV_FILE" ]; then
   done < "$ENV_FILE"
 fi
 
-if [ -z "$WAYLAND_DISPLAY" ]; then
-  _runtime="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-  for _d in wayland-1 wayland-0; do
-    if [ -S "$_runtime/$_d" ]; then export WAYLAND_DISPLAY="$_d"; break; fi
-  done
-fi
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=session-prep.sh
+. "$HERE/session-prep.sh"
 
 ARGS=(--fullscreen)
 if [ -f "$CONFIG" ]; then ARGS+=(--config "$CONFIG"); fi

@@ -1,0 +1,17 @@
+[Unit]
+Description=Backpack Game Mode (RetroArch)
+Documentation=https://github.com/ChrisLuciano2/backpack-display-system
+Conflicts=video-mode.service
+
+[Service]
+Type=simple
+WorkingDirectory=@REPO@
+EnvironmentFile=-%h/.config/backpack/secrets.env
+# What to launch (or nothing, for the menu) is written to launch.env by the server first.
+ExecStart=/bin/bash @REPO@/scripts/run-retroarch.sh
+# No automatic restart: the server decides what to do if RetroArch exits.
+Restart=no
+StandardOutput=append:%h/backpack.log
+StandardError=append:%h/backpack.log
+
+# Deliberately no [Install]: Game Mode must never start by itself at boot.

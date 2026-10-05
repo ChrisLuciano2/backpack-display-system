@@ -68,7 +68,11 @@
 
 'use strict';
 
-const { BluetoothSerialPortServer } = require('bluetooth-serial-port');
+// DEBUG_TCP=1 swaps Bluetooth for a localhost only TCP port so the real server
+// can be driven over SSH without a phone (see server/transport-tcp.js).
+const { BluetoothSerialPortServer } = process.env.DEBUG_TCP === '1'
+  ? require('./transport-tcp')
+  : require('bluetooth-serial-port');
 const vlc   = require('./vlc');
 const media = require('./media');
 const { startUploadServer } = require('./upload');

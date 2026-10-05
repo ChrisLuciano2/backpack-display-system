@@ -1,0 +1,19 @@
+[Unit]
+Description=Backpack Video Mode (VLC)
+Documentation=https://github.com/ChrisLuciano2/backpack-display-system
+# Starting Game Mode stops this, and the other way round.
+Conflicts=game-mode.service
+
+[Service]
+Type=simple
+WorkingDirectory=@REPO@
+EnvironmentFile=-%h/.config/backpack/secrets.env
+# The script waits for the desktop session itself, so there is no blind sleep here.
+ExecStart=/bin/bash @REPO@/scripts/run-vlc.sh
+Restart=on-failure
+RestartSec=3
+StandardOutput=append:%h/backpack.log
+StandardError=append:%h/backpack.log
+
+[Install]
+WantedBy=default.target
