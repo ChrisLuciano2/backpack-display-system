@@ -64,6 +64,10 @@ else
   say "kept your existing $CFG_DIR/retroarch.cfg (new defaults are in $REPO/config/retroarch.cfg)"
 fi
 
+# ── Controller profiles (RetroArch needs these to map buttons) ─────────────
+mkdir -p "$HOME/.config/retroarch/autoconfig"
+cp "$REPO"/config/autoconfig/*.cfg "$HOME/.config/retroarch/autoconfig/" 2>/dev/null && say "installed controller profiles" || true
+
 # ── Stop the old setup, whichever way it was started ───────────────────────
 say "stopping the old server and VLC"
 systemctl --user stop backpack.service 2>/dev/null || true
