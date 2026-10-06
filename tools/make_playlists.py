@@ -30,6 +30,13 @@ def find_core(core_file, cores_dir):
     return None
 
 
+def clean_label(name):
+    """Drops dump tags like (USA), (Rev 1), [!] so guests see the game's plain title."""
+    import re
+    cleaned = re.sub(r"\s*[\(\[][^\)\]]*[\)\]]", "", name).strip(" -_")
+    return cleaned or name
+
+
 def scan(roms_dir, folders, extensions, max_depth=2):
     exts = {e.lower() for e in extensions}
     found = []
@@ -69,7 +76,7 @@ def main():
             continue
         items = [{
             "path": g,
-            "label": os.path.splitext(os.path.basename(g))[0],
+            "label": clean_label(os.path.splitext(os.path.basename(g))[0]),
             "core_path": core,
             "core_name": sysdef["name"],
             "crc32": "00000000|crc",
