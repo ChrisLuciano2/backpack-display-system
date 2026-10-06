@@ -24,5 +24,6 @@ ENV NODE_PATH=/opt/bt-stub/modules \
     USER=node \
     HOME=/home/node \
     SIM=1 \
-    RETROARCH_BIN=retroarch
+    RETROARCH_BIN=retroarch \
+    RETROARCH_STATUS=udp
 ENTRYPOINT ["/entrypoint.sh"]
