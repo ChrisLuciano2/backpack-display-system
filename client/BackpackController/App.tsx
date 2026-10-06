@@ -5,6 +5,7 @@ import {StatusBar, Text} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {BluetoothProvider, useBluetooth} from './src/context/BluetoothContext';
 import BrowseFilesScreen from './src/screens/BrowseFilesScreen';
+import GamesScreen from './src/screens/GamesScreen';
 import NowPlayingScreen from './src/screens/NowPlayingScreen';
 import QueueScreen from './src/screens/QueueScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
@@ -53,6 +54,15 @@ function AppTabs() {
           tabBarIcon: () => <TabIcon label="Queue" emoji="📋" />,
           tabBarLabel: 'Queue',
           tabBarBadge: queueCount > 0 ? queueCount : undefined,
+        }}
+      />
+      <Tab.Screen
+        name="Games"
+        component={GamesScreen}
+        options={{
+          tabBarIcon: () => <TabIcon label="Games" emoji="🎮" />,
+          tabBarLabel: 'Games',
+          tabBarBadge: piStatus.mode === 'game' ? '●' : undefined,
         }}
       />
       <Tab.Screen

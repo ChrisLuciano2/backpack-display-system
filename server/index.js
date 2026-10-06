@@ -886,7 +886,13 @@ async function boot() {
   console.log(`[library] ${systems.length} system(s) configured, ${systems.filter((s) => s.ready === 'ready').length} ready`);
 
   console.log('');
-  startUploadServer();
+  // The upload server listens on the WiFi network with no login. Set UPLOAD_ENABLED=0 in
+  // ~/.config/backpack/secrets.env (or turn the Pi's WiFi off) when you are somewhere public.
+  if (process.env.UPLOAD_ENABLED === '0') {
+    console.log('[upload] Disabled (UPLOAD_ENABLED=0), no upload port is open');
+  } else {
+    startUploadServer();
+  }
   startListening();
 }
 

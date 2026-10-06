@@ -9,7 +9,12 @@ import {DeviceEventEmitter, PermissionsAndroid, Platform} from 'react-native';
 import RNBluetoothClassic, {
   BluetoothDevice,
 } from 'react-native-bluetooth-classic';
-import {PiCommand, PiStatus} from '../types/protocol';
+import {
+  LibraryPage,
+  PiCommand,
+  PiStatus,
+  SystemInfo,
+} from '../types/protocol';
 
 interface BluetoothContextValue {
   connected: boolean;
@@ -20,6 +25,10 @@ interface BluetoothContextValue {
   fileList: string[];
   movieList: string[];
   mediaList: string[];
+  systems: SystemInfo[];
+  library: LibraryPage | null;
+  notice: string | null;
+  clearNotice: () => void;
   error: string | null;
   piIp: string;
   setPiIp: (ip: string) => void;
@@ -39,6 +48,9 @@ const DEFAULT_STATUS: PiStatus = {
   volume: 75,
   screen: 'on',
   queue: [],
+  mode: 'video',
+  phase: null,
+  game: null,
 };
 
 const BluetoothContext = createContext<BluetoothContextValue | null>(null);
@@ -53,6 +65,9 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
   const [fileList, setFileList] = useState<string[]>([]);
   const [movieList, setMovieList] = useState<string[]>([]);
   const [mediaList, setMediaList] = useState<string[]>([]);
+  const [systems, setSystems] = useState<SystemInfo[]>([]);
+  const [library, setLibrary] = useState<LibraryPage | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [piIp, setPiIp] = useState<string>('');
 
@@ -99,6 +114,15 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
         if (Array.isArray(msg.media)) {
           setMediaList(msg.media);
         }
+        if (Array.isArray(msg.systems)) {
+          setSystems(msg.systems);
+        }
+        if (msg.library && Array.isArray(msg.library.items)) {
+          setLibrary(msg.library);
+        }
+        if (msg.notice && typeof msg.notice.message === 'string') {
+          setNotice(msg.notice.message);
+        }
         if (typeof msg.error === 'string' && msg.error) {
           setError(msg.error);
         }
@@ -111,6 +135,9 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
             volume: msg.volume ?? 75,
             screen: msg.screen ?? prev.screen,
             queue: Array.isArray(msg.queue) ? msg.queue : prev.queue,
+            mode: msg.mode ?? prev.mode,
+            phase: msg.phase !== undefined ? msg.phase : prev.phase,
+            game: msg.game !== undefined ? msg.game : prev.game,
           }));
         }
       } catch {
@@ -177,6 +204,8 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
           setFileList([]);
           setMovieList([]);
           setMediaList([]);
+          setSystems([]);
+          setLibrary(null);
         };
 
         // ── Data subscription ───────────────────────────────────────────────
@@ -213,6 +242,7 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
 
         // Request file list immediately after connecting
         try {
+          await dev.write(JSON.stringify({action: 'hello', v: 2}) + '\n');
           await dev.write(JSON.stringify({action: 'list'}) + '\n');
         } catch {
           // write may fail silently on first connect; Browse tab can retry
@@ -240,6 +270,8 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
     setFileList([]);
     setMovieList([]);
     setMediaList([]);
+    setSystems([]);
+    setLibrary(null);
   }, [cleanup]);
 
   const sendCommand = useCallback(async (cmd: PiCommand) => {
@@ -268,6 +300,10 @@ export function BluetoothProvider({children}: {children: React.ReactNode}) {
         fileList,
         movieList,
         mediaList,
+        systems,
+        library,
+        notice,
+        clearNotice: () => setNotice(null),
         error,
         piIp,
         setPiIp,
