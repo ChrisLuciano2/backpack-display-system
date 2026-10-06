@@ -30,6 +30,7 @@ class Phone {
           if (!line.trim()) continue;
           try {
             const msg = JSON.parse(line);
+            msg._t = Date.now();            // when it arrived, for timelines
             this.messages.push(msg);
             if (msg.status) this.status = msg;
             if (msg.error) this.errors.push(msg.error);

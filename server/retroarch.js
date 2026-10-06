@@ -8,6 +8,7 @@
 // /proc, NOT with RetroArch's GET_STATUS command: on the Pi's RetroArch 1.20.0 that
 // command never replies and crashes RetroArch (found on 2026-10-05). From /proc:
 //   no retroarch process          -> null
+//   process, command port not yet bound (still starting) -> null
 //   process, no libretro core     -> CONTENTLESS (the menu)
 //   process with a libretro core  -> PLAYING (name from the launch arguments)
 // Whether the game is paused cannot be seen from outside, so pause state is remembered
@@ -49,7 +50,21 @@ function contentFromArgs(args) {
   return content;
 }
 
-function procStatus(procRoot) {
+// True once something is listening on this UDP port, which RetroArch does only after it has
+// finished starting. If /proc/net cannot be read, assume it is ready.
+function portBound(procRoot, port) {
+  const hex = Number(port).toString(16).toUpperCase().padStart(4, '0');
+  let sawFile = false;
+  for (const f of ['net/udp', 'net/udp6']) {
+    let text;
+    try { text = fs.readFileSync(path.join(procRoot, f), 'utf8'); } catch { continue; }
+    sawFile = true;
+    if (text.split('\n').some((l) => l.includes(':' + hex + ' '))) return true;
+  }
+  return !sawFile;
+}
+
+function procStatus(procRoot, port) {
   let pid = null;
   let entries = [];
   try { entries = fs.readdirSync(procRoot); } catch { return null; }
@@ -60,6 +75,7 @@ function procStatus(procRoot) {
     } catch { /* process ended while we looked */ }
   }
   if (!pid) return null;
+  if (!portBound(procRoot, port)) return null; // still starting up
 
   let maps = '';
   try { maps = fs.readFileSync(path.join(procRoot, pid, 'maps'), 'utf8'); } catch { return null; }
@@ -110,7 +126,7 @@ function createRetroArchClient({
       const reply = await ask('GET_STATUS');
       s = reply === null ? null : parseStatus(reply);
     } else {
-      s = procStatus(procRoot);
+      s = procStatus(procRoot, port);
     }
     if (s && s.state === 'PLAYING') {
       if (s.name !== lastName) { paused = false; lastName = s.name; } // a different game is never paused

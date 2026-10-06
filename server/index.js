@@ -313,9 +313,10 @@ async function buildFullStatus() {
   }
   st.screen = screenOff ? 'off' : 'on';
   st.queue = upNext.slice();
-  const modeState = modeReady ? modeManager.getState() : { mode: 'video', target: null, game: null };
+  const modeState = modeReady ? modeManager.getState() : { mode: 'video', target: null, phase: null, game: null };
   st.mode = modeState.mode;
   st.target = modeState.target;
+  st.phase = modeState.phase;
   st.game = modeState.game;
   return st;
 }
@@ -632,6 +633,7 @@ async function dispatch(cmd) {
           hello: true,
           v: 2,
           mode: modeState.mode,
+          phase: modeState.phase,
           game: modeState.game,
           // The upload token is wired up in the security hardening step
           // (STG452-38) — until then this is always null, not a bug.

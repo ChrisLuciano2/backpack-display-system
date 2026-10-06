@@ -203,3 +203,14 @@ test('saveState finds the state file in the per core folder RetroArch uses', asy
   assert.equal(await c.saveState(800), true);
   ra.close();
 });
+
+test('proc status: retroarch is not "up" until its command port is bound', async () => {
+  const root = procFixture({ 9: { comm: 'retroarch', maps: CORE_MAP, args: ['retroarch', '-L', 'x/snes9x_libretro.so', 'g.sfc'] } });
+  fs.mkdirSync(path.join(root, 'net'));
+  const header = '  sl  local_address rem_address   st tx_queue rx_queue\n';
+  fs.writeFileSync(path.join(root, 'net', 'udp'), header + '   1: 00000000:0044 00000000:0000 07 00000000:00000000\n');
+  const c = createRetroArchClient({ statusMode: 'proc', procRoot: root, port: 55355 });
+  assert.equal(await c.status(), null, 'still starting');
+  fs.writeFileSync(path.join(root, 'net', 'udp'), header + '   1: 0100007F:D83B 00000000:0000 07 00000000:00000000\n');
+  assert.equal((await c.status()).state, 'PLAYING', 'ready once port 55355 (D83B) is bound');
+});
