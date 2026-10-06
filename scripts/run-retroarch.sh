@@ -37,6 +37,11 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=session-prep.sh
 . "$HERE/session-prep.sh"
 
+# Rebuild the game lists so newly copied games show up on their own.
+if command -v python3 >/dev/null 2>&1; then
+  python3 "$HERE/../tools/make_playlists.py" >/dev/null 2>&1 || true
+fi
+
 ARGS=(--fullscreen)
 if [ -f "$CONFIG" ]; then ARGS+=(--config "$CONFIG"); fi
 if [ -n "$CORE" ] && [ -n "$ROM" ]; then
