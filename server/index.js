@@ -63,8 +63,16 @@
 // Not yet built (tracked in Jira, not silently missing): the upload token in
 // "hello" is always null until the security hardening step wires it up
 // (STG452-38); "gamectl swap" replies with code "not_implemented" until the
-// player-swap story lands (STG452-61); health and storage fields are added to
-// status in the health/telemetry step (STG452-63).
+// player-swap story lands (STG452-61).
+//
+// Health and storage (STG452-63, FR-11 and FR-16). Status and "hello" carry two
+// extra fields once the first sample is in (every 5 s, see system.js):
+//   "storage": { "path", "usedGB", "totalGB", "percent", "level": "ok"|"amber"|"red" }
+//   "health":  { "tempC", "throttled": "0x0", "undervolt", "level": "ok"|"amber"|"red",
+//                "occurred": { "undervolt", "throttled", "softTempLimit" },
+//                "warnings": [ { "code", "level", "message" } ] }
+// { "action": "health" } replies with both fields plus "events", the last 20
+// times a warning appeared or cleared. v1 clients just see two extra fields.
 
 'use strict';
 
@@ -82,9 +90,22 @@ const { ModeManager, ModeError } = require('./mode');
 const { createRetroArchClient } = require('./retroarch');
 const { createLibrary } = require('./library');
 const { createLaunchFile } = require('./launchFile');
+const system = require('./system');
 const path  = require('path');
 const os    = require('os');
-const { BT_UUID, BT_CHANNEL, STATUS_INTERVAL_MS } = require('./config');
+const { BT_UUID, BT_CHANNEL, STATUS_INTERVAL_MS, MEDIA_DIR, ROMS_DIR } = require('./config');
+
+// Storage and power/thermal monitor (STG452-63). Samples every 5 s; never throws.
+const systemMonitor = system.createMonitor({
+  storagePaths: [ROMS_DIR, MEDIA_DIR],
+  onEvent: (e) => console.log(`[health] ${e.kind} ${e.code} (${e.level}): ${e.message}`),
+});
+
+// The extra status fields, or nothing at all before the first sample.
+function healthFields() {
+  const snap = systemMonitor.snapshot();
+  return snap ? { storage: snap.storage, health: snap.health } : {};
+}
 
 // ── Network helpers ───────────────────────────────────────────────────────────
 
@@ -135,7 +156,7 @@ const QUEUE_POLL_MS = 500; // how often to check for natural end-of-clip
 // two quick taps (or a tap during an auto-advance) can never run together.
 // Read-only commands skip the lane so the app stays responsive.
 const commandQueue = new CommandQueue();
-const READ_ACTIONS = new Set(['list', 'hello', 'systems', 'library', 'ping']);
+const READ_ACTIONS = new Set(['list', 'hello', 'systems', 'library', 'ping', 'health']);
 const DEFAULT_DEADLINE_MS = 5000;
 const DEADLINES_MS = {
   play: 10000, next: 10000, prev: 10000, queuejump: 10000, enqueue: 10000, screen: 8000,
@@ -318,6 +339,7 @@ async function buildFullStatus() {
   st.target = modeState.target;
   st.phase = modeState.phase;
   st.game = modeState.game;
+  Object.assign(st, healthFields());
   return st;
 }
 
@@ -638,8 +660,16 @@ async function dispatch(cmd) {
           // The upload token is wired up in the security hardening step
           // (STG452-38) — until then this is always null, not a bug.
           token: null,
-          caps: ['mode', 'systems', 'library', 'launchgame', 'gamectl'],
+          caps: ['mode', 'systems', 'library', 'launchgame', 'gamectl', 'health'],
+          ...healthFields(),
         });
+        return;
+      }
+
+      // ── Storage and power/thermal health (FR-11, FR-16) ──────────────────
+      case 'health': {
+        const snap = await systemMonitor.sample();
+        reply({ health: snap.health, storage: snap.storage, events: systemMonitor.events() });
         return;
       }
 
@@ -885,6 +915,7 @@ async function boot() {
   const systems = library.systems();
   console.log(`[library] ${systems.length} system(s) configured, ${systems.filter((s) => s.ready === 'ready').length} ready`);
 
+  systemMonitor.start();
   console.log('');
   // The upload server listens on the WiFi network with no login. Set UPLOAD_ENABLED=0 in
   // ~/.config/backpack/secrets.env (or turn the Pi's WiFi off) when you are somewhere public.
@@ -903,6 +934,7 @@ boot();
 process.on('SIGINT', () => {
   console.log('\n[server] Shutting down...');
   stopStatusBroadcast();
+  systemMonitor.stop();
   modeManager.stop();
   if (server) {
     try { server.close(); } catch { /* ignore */ }
